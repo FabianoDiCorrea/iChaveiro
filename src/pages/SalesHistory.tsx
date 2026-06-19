@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Transaction, type Profile, type PaymentMethod, type TransactionItem } from '../db/db';
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
 import { Calendar, Printer, Undo2, Trash2, Search, Filter, Edit2, X, Plus } from 'lucide-react';
 
 export const SalesHistory = () => {
-  const [dateRange, setDateRange] = useState<'today' | 'month' | 'year' | 'custom'>('today');
+  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [viewProfile, setViewProfile] = useState<Profile | 'todos'>('todos');
@@ -17,6 +17,7 @@ export const SalesHistory = () => {
     const now = new Date();
     switch (dateRange) {
       case 'today': return { start: startOfDay(now), end: endOfDay(now) };
+      case 'week': return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
       case 'month': return { start: startOfMonth(now), end: endOfMonth(now) };
       case 'year': return { start: startOfYear(now), end: endOfYear(now) };
       case 'custom': 
@@ -183,10 +184,21 @@ export const SalesHistory = () => {
         total: i.price * i.quantity
       }));
 
+      let calculatedFee = 0;
+      if (editingTx.profile === 'chaveiro') {
+        if (editingTx.paymentMethod === 'debit') calculatedFee = total * 0.0199;
+        else if (editingTx.paymentMethod === 'credit') calculatedFee = total * 0.0498;
+      } else if (editingTx.profile === 'fabiano') {
+        if (editingTx.paymentMethod === 'pix') calculatedFee = total * 0.0045;
+        else if (editingTx.paymentMethod === 'debit') calculatedFee = total * 0.0198;
+        else if (editingTx.paymentMethod === 'credit') calculatedFee = total * 0.0486;
+      }
+
       await db.transactions.update(editingTx.id, {
         profile: editingTx.profile,
         paymentMethod: editingTx.paymentMethod,
         discount: editingTx.discount || 0,
+        machineFee: calculatedFee > 0 ? calculatedFee : undefined,
         items: updatedItems,
         total: total
       });
@@ -235,6 +247,7 @@ export const SalesHistory = () => {
             <label className="label">Período</label>
             <select className="input min-w-[150px]" value={dateRange} onChange={e => setDateRange(e.target.value as any)}>
               <option value="today">Hoje</option>
+              <option value="week">Semana (7 dias)</option>
               <option value="month">Este Mês</option>
               <option value="year">Este Ano</option>
               <option value="custom">Personalizado</option>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Pos } from './pages/Pos';
@@ -8,6 +8,7 @@ import { Inventory } from './pages/Inventory';
 import { Reports } from './pages/Reports';
 import { Returns } from './pages/Returns';
 import { SalesHistory } from './pages/SalesHistory';
+import { Backup } from './pages/Backup';
 
 const AppRoutes = () => {
   return (
@@ -20,6 +21,7 @@ const AppRoutes = () => {
         <Route path="relatorios" element={<Reports />} />
         <Route path="historico" element={<SalesHistory />} />
         <Route path="devolucoes" element={<Returns />} />
+        <Route path="nuvem" element={<Backup />} />
       </Route>
     </Routes>
   );
@@ -27,9 +29,9 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppRoutes />
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 

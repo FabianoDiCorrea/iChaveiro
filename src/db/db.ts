@@ -21,6 +21,7 @@ export interface Transaction {
   items: TransactionItem[];
   total: number;
   discount?: number;
+  machineFee?: number;
   paymentMethod: PaymentMethod;
   clientId?: number;
   clientName?: string;

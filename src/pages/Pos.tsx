@@ -78,7 +78,7 @@ export const Pos = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const products = useLiveQuery(
-    () => db.products.where('profile').equals(transactionProfile).toArray(),
+    () => db.products.toArray(),
     [transactionProfile]
   );
 
@@ -219,12 +219,23 @@ export const Pos = () => {
           }
         }
 
+        let calculatedFee = 0;
+        if (transactionProfile === 'chaveiro') {
+          if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0199;
+          else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0498;
+        } else if (transactionProfile === 'fabiano') {
+          if (paymentMethod === 'pix') calculatedFee = totalAmount * 0.0045;
+          else if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0198;
+          else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0486;
+        }
+
         await db.transactions.add({
           profile: transactionProfile,
           type: 'sale',
           items,
           total: totalAmount,
           discount: discountValue > 0 ? discountValue : undefined,
+          machineFee: calculatedFee > 0 ? calculatedFee : undefined,
           paymentMethod,
           clientCode: clientCode || undefined,
           date: new Date()
@@ -694,6 +705,34 @@ export const Pos = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#eab308', letterSpacing: '0.05em', marginRight: '8px' }} className="hidden md:inline">CHAVEIRO & CUTELARIA</span>
+          <button
+            onClick={() => {
+              const expected = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
+              alert(`💵 Dinheiro Físico Esperado na Gaveta:\n\nR$ ${expected.toFixed(2).replace('.', ',')}\n\n(Fundo Inicial + Vendas Dinheiro - Despesas)`);
+            }}
+            title="Ver total de dinheiro em caixa"
+            style={{
+              backgroundColor: 'transparent',
+              color: '#94a3b8',
+              border: '1px solid #475569',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '0.80rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.color = '#eab308';
+              e.currentTarget.style.borderColor = '#eab308';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.borderColor = '#475569';
+            }}
+          >
+            $ VER CAIXA $
+          </button>
           <button
             onClick={() => {
               setExpenseAmount('');

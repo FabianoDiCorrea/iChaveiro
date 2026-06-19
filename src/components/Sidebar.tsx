@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud } from 'lucide-react';
 
 export const Sidebar = () => {
   return (
@@ -41,6 +41,10 @@ export const Sidebar = () => {
         <NavLink to="/devolucoes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Undo2 size={20} />
           <span>Devoluções</span>
+        </NavLink>
+        <NavLink to="/nuvem" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <Cloud size={20} />
+          <span>Sincronizar Nuvem</span>
         </NavLink>
       </nav>
     </div>

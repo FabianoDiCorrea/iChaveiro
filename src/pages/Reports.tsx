@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import type { Profile } from '../db/db';
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
 import { Download, Calendar, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export const Reports = () => {
   const [viewProfile, setViewProfile] = React.useState<Profile | 'todos'>('todos');
-  const [dateRange, setDateRange] = useState<'today' | 'month' | 'year' | 'custom'>('today');
+  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -20,6 +20,7 @@ export const Reports = () => {
     const now = new Date();
     switch (dateRange) {
       case 'today': return { start: startOfDay(now), end: endOfDay(now) };
+      case 'week': return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
       case 'month': return { start: startOfMonth(now), end: endOfMonth(now) };
       case 'year': return { start: startOfYear(now), end: endOfYear(now) };
       case 'custom': 
@@ -64,10 +65,12 @@ export const Reports = () => {
     let totalSales = 0;
     let totalCosts = 0;
     let totalDiscounts = 0;
+    let totalMachineFees = 0;
 
     sales.forEach(t => {
       totalSales += t.total + (t.discount || 0);
       totalDiscounts += t.discount || 0;
+      totalMachineFees += t.machineFee || 0;
       t.items.forEach(item => {
         const svc = item.service;
         if (svc in serviceTotals) {
@@ -84,7 +87,7 @@ export const Reports = () => {
     const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
     const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
     const netTotal = totalSales - totalReturns - totalDiscounts;
-    const realProfit = netTotal - totalCosts - totalExpenses;
+    const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
 
     const dateStr = new Date().toLocaleString('pt-BR');
     const periodStr = `${format(start, 'dd/MM/yyyy')} a ${format(end, 'dd/MM/yyyy')}`;
@@ -139,6 +142,7 @@ export const Reports = () => {
           <tr><td>Descontos:</td><td class="text-right font-mono">- R$ ${totalDiscounts.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Devoluções (-):</td><td class="text-right font-mono">- R$ ${totalReturns.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Despesas (-):</td><td class="text-right font-mono">- R$ ${totalExpenses.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>Taxas Maquininha (-):</td><td class="text-right font-mono">- R$ ${totalMachineFees.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Custo de Produtos:</td><td class="text-right font-mono">- R$ ${totalCosts.toFixed(2).replace('.', ',')}</td></tr>
           <tr class="bold" style="font-size: 12px; border-top: 1px dashed black;">
             <td>LUCRO REAL:</td>
@@ -158,12 +162,13 @@ export const Reports = () => {
           else if (t.type === 'expense') typeStr = 'Despesa';
 
           let rowCost = 0;
+          let rowFee = t.machineFee || 0;
           if (t.type === 'sale') {
             rowCost = t.items.reduce((sum, item) => sum + ((item.cost || 0) * item.quantity), 0);
           }
           
           let rowProfit = 0;
-          if (t.type === 'sale') rowProfit = t.total - rowCost;
+          if (t.type === 'sale') rowProfit = t.total - rowCost - rowFee;
           else rowProfit = -t.total;
 
           const timeStr = format(t.date, 'dd/MM HH:mm');
@@ -173,8 +178,12 @@ export const Reports = () => {
             <div style="margin-bottom: 6px;">
               <div class="bold">${idx + 1}. ${typeStr} (${timeStr})</div>
               <div style="color: #444; font-size: 10px; word-break: break-all;">Itens: ${itemsStr}</div>
-              <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9px; margin-top: 2px;">
                 <span>Pg: ${t.paymentMethod.toUpperCase()}</span>
+                <span>Taxa: R$ ${rowFee.toFixed(2).replace('.', ',')}</span>
+                <span>Custo: R$ ${rowCost.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px;">
                 <span>Líq: R$ ${t.total.toFixed(2).replace('.', ',')}</span>
                 <span>Lucro: R$ ${rowProfit.toFixed(2).replace('.', ',')}</span>
               </div>
@@ -225,10 +234,12 @@ export const Reports = () => {
     let totalSales = 0;
     let totalCosts = 0;
     let totalDiscounts = 0;
+    let totalMachineFees = 0;
 
     sales.forEach(t => {
       totalSales += t.total + (t.discount || 0);
       totalDiscounts += t.discount || 0;
+      totalMachineFees += t.machineFee || 0;
       t.items.forEach(item => {
         const svc = item.service;
         if (svc in serviceTotals) {
@@ -243,7 +254,7 @@ export const Reports = () => {
     const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
     const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
     const netTotal = totalSales - totalReturns - totalDiscounts;
-    const realProfit = netTotal - totalCosts - totalExpenses;
+    const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
 
     const summaryData = [
       ['Chaves', `R$ ${serviceTotals.key.toFixed(2).replace('.', ',')}`],
@@ -258,6 +269,7 @@ export const Reports = () => {
       ['Descontos', `- R$ ${totalDiscounts.toFixed(2).replace('.', ',')}`],
       ['Devolucoes (-)', `- R$ ${totalReturns.toFixed(2).replace('.', ',')}`],
       ['Despesas/Retiradas (-)', `- R$ ${totalExpenses.toFixed(2).replace('.', ',')}`],
+      ['Taxas Maquininha (-)', `- R$ ${totalMachineFees.toFixed(2).replace('.', ',')}`],
       ['Faturamento Liquido', `R$ ${netTotal.toFixed(2).replace('.', ',')}`],
       ['Custo de Insumos', `- R$ ${totalCosts.toFixed(2).replace('.', ',')}`],
       ['Lucro Real', `R$ ${realProfit.toFixed(2).replace('.', ',')}`],
@@ -281,12 +293,13 @@ export const Reports = () => {
         else if (t.type === 'expense') typeStr = 'Despesa';
 
         let rowCost = 0;
+        let rowFee = t.machineFee || 0;
         if (t.type === 'sale') {
           rowCost = t.items.reduce((sum, item) => sum + ((item.cost || 0) * item.quantity), 0);
         }
         
         let rowProfit = 0;
-        if (t.type === 'sale') rowProfit = t.total - rowCost;
+        if (t.type === 'sale') rowProfit = t.total - rowCost - rowFee;
         else if (t.type === 'expense') rowProfit = -t.total;
         else if (t.type === 'return') rowProfit = -t.total;
 
@@ -296,6 +309,7 @@ export const Reports = () => {
           t.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
           t.paymentMethod.toUpperCase(),
           `R$ ${t.total.toFixed(2).replace('.', ',')}`,
+          `R$ ${rowFee.toFixed(2).replace('.', ',')}`,
           `R$ ${rowCost.toFixed(2).replace('.', ',')}`,
           `R$ ${rowProfit.toFixed(2).replace('.', ',')}`
         ];
@@ -303,7 +317,7 @@ export const Reports = () => {
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 8,
-        head: [['Data/Hora', 'Tipo', 'Itens/Descricao', 'Pgto', 'Liquido', 'Custo', 'Lucro']],
+        head: [['Data/Hora', 'Tipo', 'Itens/Descricao', 'Pgto', 'Liquido', 'Taxa', 'Custo', 'Lucro']],
         body: transactionsData,
         theme: 'striped',
         headStyles: { fillColor: [30, 41, 59], fontSize: 7.5 },
@@ -326,10 +340,12 @@ export const Reports = () => {
   let totalGrossSales = 0;
   let totalCosts = 0;
   let totalDiscounts = 0;
+  let totalMachineFees = 0;
   
   sales.forEach(t => {
     totalGrossSales += t.total + (t.discount || 0);
     totalDiscounts += t.discount || 0;
+    totalMachineFees += t.machineFee || 0;
     t.items.forEach(item => {
       const svc = item.service;
       if (svc in serviceTotals) {
@@ -346,7 +362,7 @@ export const Reports = () => {
   const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
   const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
   const netTotal = totalGrossSales - totalReturns - totalDiscounts;
-  const realProfit = netTotal - totalCosts - totalExpenses;
+  const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
@@ -384,6 +400,7 @@ export const Reports = () => {
             <label className="label">Período</label>
             <select className="input min-w-[200px]" value={dateRange} onChange={e => setDateRange(e.target.value as any)}>
               <option value="today">Hoje</option>
+              <option value="week">Semana (7 dias)</option>
               <option value="month">Este Mês</option>
               <option value="year">Este Ano</option>
               <option value="custom">Personalizado</option>
@@ -472,6 +489,10 @@ export const Reports = () => {
           <p className="text-xs text-muted font-bold uppercase">Despesas (-)</p>
           <p className="text-xl font-extrabold text-amber-500">R$ {totalExpenses.toFixed(2).replace('.', ',')}</p>
         </div>
+        <div className="glass-panel p-4 border-l-4 border-purple-500">
+          <p className="text-xs text-muted font-bold uppercase">Taxas Maquininha (-)</p>
+          <p className="text-xl font-extrabold text-purple-400">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</p>
+        </div>
         <div className="glass-panel p-4 border-l-4 border-danger">
           <p className="text-xs text-muted font-bold uppercase">Custo Produtos</p>
           <p className="text-xl font-extrabold text-danger">R$ {totalCosts.toFixed(2).replace('.', ',')}</p>
@@ -499,6 +520,7 @@ export const Reports = () => {
                 <th className="py-3 px-4 font-bold text-right">Subtotal</th>
                 <th className="py-3 px-4 font-bold text-right">Desconto</th>
                 <th className="py-3 px-4 font-bold text-right">Líquido</th>
+                <th className="py-3 px-4 font-bold text-right">Taxa</th>
                 <th className="py-3 px-4 font-bold text-right">Custo</th>
                 <th className="py-3 px-4 font-bold text-right">Lucro Real</th>
               </tr>
@@ -518,6 +540,7 @@ export const Reports = () => {
                 let rowDiscount = 0;
                 let rowNet = 0;
                 let rowCost = 0;
+                let rowFee = t.machineFee || 0;
                 let rowProfit = 0;
 
                 if (t.type === 'sale') {
@@ -525,7 +548,7 @@ export const Reports = () => {
                   rowDiscount = t.discount || 0;
                   rowNet = t.total;
                   rowCost = t.items.reduce((sum, item) => sum + ((item.cost || 0) * item.quantity), 0);
-                  rowProfit = rowNet - rowCost;
+                  rowProfit = rowNet - rowCost - rowFee;
                 } else {
                   rowGross = t.total;
                   rowDiscount = 0;
@@ -548,6 +571,7 @@ export const Reports = () => {
                     <td className={`py-3 px-4 text-xs font-mono text-right font-bold ${t.type === 'sale' ? 'text-success' : 'text-danger'}`}>
                       {t.type === 'sale' ? '+' : '-'} R$ {rowNet.toFixed(2).replace('.', ',')}
                     </td>
+                    <td className="py-3 px-4 text-xs font-mono text-right text-purple-400">{rowFee > 0 ? `- R$ ${rowFee.toFixed(2).replace('.', ',')}` : '-'}</td>
                     <td className="py-3 px-4 text-xs font-mono text-right text-danger">{rowCost > 0 ? `R$ ${rowCost.toFixed(2).replace('.', ',')}` : '-'}</td>
                     <td className={`py-3 px-4 text-xs font-mono text-right font-black ${rowProfit > 0 ? 'text-success' : rowProfit < 0 ? 'text-danger' : 'text-muted'}`}>
                       {rowProfit > 0 ? '+' : ''} R$ {rowProfit.toFixed(2).replace('.', ',')}

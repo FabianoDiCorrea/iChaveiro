@@ -8,7 +8,6 @@ export const Inventory = () => {
   // Helper: check if this product instance has stock tracking enabled
   const hasInventoryByProduct = (product: Product) => product.hasStock === true;
   const hasInventory = (type: ServiceType) => type === 'key' || type === 'spring' || type === 'screw';
-  const [viewProfile, setViewProfile] = useState<Profile | 'todos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -96,18 +95,14 @@ export const Inventory = () => {
 
   const products = useLiveQuery(
     () => {
-      let query = db.products.toCollection();
-      if (viewProfile !== 'todos') {
-        query = db.products.where('profile').equals(viewProfile);
-      }
-      return query.filter(p => {
+      return db.products.toCollection().filter(p => {
         const term = searchTerm.toLowerCase();
         return p.name.toLowerCase().includes(term) || 
                (p.code?.toLowerCase() || '').includes(term) ||
                (p.brand?.toLowerCase() || '').includes(term);
       }).toArray();
     },
-    [viewProfile, searchTerm]
+    [searchTerm]
   );
 
   const sortedProducts = React.useMemo(() => {
@@ -165,7 +160,7 @@ export const Inventory = () => {
     } else {
       setEditingProduct(null);
       setFormData({ 
-        profile: viewProfile === 'todos' ? 'chaveiro' : viewProfile, 
+        profile: 'chaveiro', 
         code: '',
         brand: '',
         name: '', 
@@ -295,18 +290,6 @@ export const Inventory = () => {
           <p className="text-muted">Gerencie produtos, valores fixos e quantidades</p>
         </div>
         <div className="flex gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted">Visualizando Estoque:</label>
-            <select 
-              className="input py-1 px-2 text-sm font-bold w-auto"
-              value={viewProfile}
-              onChange={e => setViewProfile(e.target.value as any)}
-            >
-              <option value="todos">Todos (Geral)</option>
-              <option value="chaveiro">Chaveiro</option>
-              <option value="fabiano">Fabiano</option>
-            </select>
-          </div>
           <button className="btn btn-primary" onClick={() => handleOpenModal()}>
             <Plus size={20} /> Novo Produto
           </button>
@@ -538,17 +521,6 @@ export const Inventory = () => {
           <div className="glass-panel w-full max-w-md p-6">
             <h2 className="text-xl font-bold mb-4">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
             <form onSubmit={handleSave} className="flex flex-col gap-4">
-              <div>
-                <label className="label">Perfil do Estoque</label>
-                <select 
-                  className="input font-bold text-primary"
-                  value={formData.profile}
-                  onChange={e => setFormData({ ...formData, profile: e.target.value as Profile })}
-                >
-                  <option value="chaveiro">Chaveiro</option>
-                  <option value="fabiano">Fabiano</option>
-                </select>
-              </div>
               
               <div>
                 <label className="label">Categoria / Serviço</label>
