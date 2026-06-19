@@ -32,6 +32,8 @@ export const Sidebar = () => {
     };
     checkUpdate();
   }, []);
+
+  return (
     <div className="sidebar">
       <div className="p-6 flex items-center gap-2 border-b border-[var(--border)]">
         <KeyRound className="text-primary" size={32} />
