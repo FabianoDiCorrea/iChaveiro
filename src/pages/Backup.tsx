@@ -1,20 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db/db';
 import { exportDB, importInto } from 'dexie-export-import';
-import { Cloud, UploadCloud, DownloadCloud, CheckCircle, AlertCircle, Save } from 'lucide-react';
+import { Cloud, UploadCloud, DownloadCloud, CheckCircle, AlertCircle, Save, History } from 'lucide-react';
 
 export const Backup = () => {
   const [token, setToken] = useState('');
   const [repo, setRepo] = useState('');
   const [status, setStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const [progress, setProgress] = useState<number>(0);
+  const [showConfig, setShowConfig] = useState(false);
+  const [backupHistory, setBackupHistory] = useState<{ date: string, type: 'Enviado' | 'Restaurado' }[]>([]);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('github_token') || '';
     const savedRepo = localStorage.getItem('github_repo') || '';
     setToken(savedToken);
     setRepo(savedRepo);
+
+    const savedHistory = localStorage.getItem('ichaveiro_backup_history');
+    if (savedHistory) {
+      try {
+        setBackupHistory(JSON.parse(savedHistory));
+      } catch (e) {}
+    }
   }, []);
+
+  const addToHistory = (type: 'Enviado' | 'Restaurado') => {
+    const newEntry = { date: new Date().toISOString(), type };
+    setBackupHistory(prev => {
+      const updated = [newEntry, ...prev].slice(0, 5);
+      localStorage.setItem('ichaveiro_backup_history', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const saveConfig = () => {
     localStorage.setItem('github_token', token);
@@ -160,6 +178,7 @@ export const Backup = () => {
         
         await uploadToGitHub(base64data, sha, cleanRepo);
         
+        addToHistory('Enviado');
         setProgress(100);
         setStatus({ type: 'success', message: 'Backup enviado para a Nuvem com sucesso!' });
       };
@@ -216,6 +235,7 @@ export const Backup = () => {
         }
       });
 
+      addToHistory('Restaurado');
       setProgress(100);
       setStatus({ type: 'success', message: 'Backup restaurado com sucesso! Seus dados estão sincronizados.' });
     } catch (error: any) {
@@ -226,14 +246,21 @@ export const Backup = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-800">Sincronização na Nuvem (GitHub)</h1>
-        <Cloud className="h-8 w-8 text-blue-500" />
+        <h1 className="text-2xl font-bold">Sincronização na Nuvem</h1>
+        <button 
+          onClick={() => setShowConfig(!showConfig)}
+          className="p-2 bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] rounded-full transition-colors"
+          title="Configurações"
+        >
+          <Cloud className="h-6 w-6 text-primary" />
+        </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h2 className="text-xl font-semibold text-slate-800 mb-4">Configuração de Conexão</h2>
+      {showConfig && (
+        <div className="glass-panel p-6 animate-fade-in">
+          <h2 className="text-lg font-bold mb-4">Configuração de Conexão</h2>
         
         <div className="space-y-4">
           <div>
@@ -264,13 +291,14 @@ export const Backup = () => {
 
           <button
             onClick={saveConfig}
-            className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+            className="flex items-center px-4 py-2 bg-primary text-black font-bold rounded-lg hover:brightness-110 transition-colors"
           >
             <Save className="h-4 w-4 mr-2" />
             Salvar Credenciais
           </button>
         </div>
       </div>
+      )}
 
       {status.type !== 'idle' && (
         <div className={`p-4 rounded-lg flex flex-col ${
@@ -297,42 +325,68 @@ export const Backup = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center text-center">
-          <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <UploadCloud className="h-8 w-8 text-blue-600" />
+        <button
+          onClick={handleBackup}
+          disabled={status.type === 'loading'}
+          className="glass-panel p-8 flex flex-col items-center text-center transition-all cursor-pointer disabled:opacity-50"
+          style={{ border: '2px solid transparent' }}
+          onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--success)'}
+          onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
+        >
+          <div className="rounded-full flex items-center justify-center mb-6" style={{ width: '96px', height: '96px', backgroundColor: 'rgba(16, 185, 129, 0.15)' }}>
+            <UploadCloud style={{ width: '48px', height: '48px', color: 'var(--success)' }} />
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">Enviar para Nuvem</h3>
-          <p className="text-slate-500 mb-6 flex-grow">
-            Salva todo o seu cadastro de clientes, estoque e histórico de vendas diretamente no GitHub.
+          <h3 className="text-2xl font-bold mb-2 text-success" style={{ textTransform: 'uppercase' }}>Enviar para Nuvem</h3>
+          <p className="text-muted text-sm" style={{ color: 'var(--text-main)' }}>
+            Salva os dados de clientes, estoque e vendas.
           </p>
-          <button
-            onClick={handleBackup}
-            disabled={status.type === 'loading'}
-            className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-          >
-            <UploadCloud className="h-5 w-5 mr-2" />
-            Fazer Backup
-          </button>
-        </div>
+        </button>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center text-center">
-          <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-            <DownloadCloud className="h-8 w-8 text-emerald-600" />
+        <button
+          onClick={handleRestore}
+          disabled={status.type === 'loading'}
+          className="glass-panel p-8 flex flex-col items-center text-center transition-all cursor-pointer disabled:opacity-50"
+          style={{ border: '2px solid transparent' }}
+          onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--danger)'}
+          onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
+        >
+          <div className="rounded-full flex items-center justify-center mb-6" style={{ width: '96px', height: '96px', backgroundColor: 'rgba(239, 68, 68, 0.15)' }}>
+            <DownloadCloud style={{ width: '48px', height: '48px', color: 'var(--danger)' }} />
           </div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">Puxar da Nuvem</h3>
-          <p className="text-slate-500 mb-6 flex-grow">
-            Baixa o último backup salvo no GitHub e restaura no sistema local. (Cuidado: substituirá os dados atuais).
+          <h3 className="text-2xl font-bold mb-2 text-danger" style={{ textTransform: 'uppercase' }}>Puxar da Nuvem</h3>
+          <p className="text-muted text-sm" style={{ color: 'var(--text-main)' }}>
+            Restaura o último backup salvo. (Apaga dados atuais).
           </p>
-          <button
-            onClick={handleRestore}
-            disabled={status.type === 'loading'}
-            className="w-full flex items-center justify-center px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50"
-          >
-            <DownloadCloud className="h-5 w-5 mr-2" />
-            Restaurar Backup
-          </button>
-        </div>
+        </button>
       </div>
+
+      {backupHistory.length > 0 && (
+        <div className="glass-panel p-6 animate-fade-in mt-6">
+          <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <History style={{ width: '24px', height: '24px', color: 'var(--primary)' }} />
+            Últimos Backups (Histórico)
+          </h3>
+          <div className="flex-col" style={{ gap: '12px' }}>
+            {backupHistory.map((h, i) => (
+              <div key={i} className="flex items-center justify-between rounded p-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+                <div className="flex items-center gap-2">
+                  {h.type === 'Enviado' ? (
+                    <UploadCloud style={{ width: '20px', height: '20px', color: 'var(--success)' }} />
+                  ) : (
+                    <DownloadCloud style={{ width: '20px', height: '20px', color: 'var(--danger)' }} />
+                  )}
+                  <span className="font-semibold text-sm">
+                    {h.type === 'Enviado' ? 'Backup Enviado (Salvo)' : 'Backup Restaurado (Puxado)'}
+                  </span>
+                </div>
+                <span className="text-muted text-sm" style={{ fontFamily: 'monospace' }}>
+                  {new Date(h.date).toLocaleString('pt-BR')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
