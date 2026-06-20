@@ -20,8 +20,19 @@ export const Sidebar = () => {
           const currentVersion = packageJson.version;
           
           if (latestVersion !== currentVersion && data.html_url) {
-            // Very simple string comparison (works for 0.0.x format)
-            if (latestVersion > currentVersion) {
+            const isNewer = (latest: string, current: string) => {
+              const l = latest.split('.').map(Number);
+              const c = current.split('.').map(Number);
+              for (let i = 0; i < Math.max(l.length, c.length); i++) {
+                const numL = l[i] || 0;
+                const numC = c[i] || 0;
+                if (numL > numC) return true;
+                if (numL < numC) return false;
+              }
+              return false;
+            };
+            
+            if (isNewer(latestVersion, currentVersion)) {
               setUpdateAvailable({ version: data.tag_name, url: data.html_url });
             }
           }
