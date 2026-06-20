@@ -1,7 +1,7 @@
 {
   "name": "ichaveiro",
   "private": true,
-  "version": "0.0.7",
+  "version": "0.0.8",
   "author": "DevDuo",
   "description": "Sistema de Gestão para Chaveiro",
   "type": "module",
@@ -37,6 +37,13 @@
       "dist/**/*",
       "electron/**/*",
       "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "FabianoDiCorrea",
+        "repo": "iChaveiro"
+      }
     ]
   },
   "dependencies": {
@@ -45,6 +52,7 @@
     "dexie": "^4.4.3",
     "dexie-export-import": "^4.4.0",
     "dexie-react-hooks": "^4.4.0",
+    "electron-updater": "^6.8.9",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.18.0",

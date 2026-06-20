@@ -148,6 +148,7 @@ export const Inventory = () => {
         profile: product.profile, 
         code: product.code || '',
         brand: product.brand || '',
+        model: product.model || '',
         name: product.name, 
         price: product.price.toString(), 
         costPrice: product.costPrice.toString(),
@@ -163,6 +164,7 @@ export const Inventory = () => {
         profile: 'chaveiro', 
         code: '',
         brand: '',
+        model: '',
         name: '', 
         price: '', 
         costPrice: '0',
@@ -184,6 +186,7 @@ export const Inventory = () => {
       profile: formData.profile,
       code: formData.code || undefined,
       brand: formData.brand || undefined,
+      model: formData.model || undefined,
       name: formData.name,
       price: Number(formData.price),
       costPrice: formData.hasStock ? Number(formData.costPrice) : 0,
@@ -344,25 +347,25 @@ export const Inventory = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="bg-[var(--bg-surface)] sticky top-0 z-10">
-              <tr className="border-b border-[var(--border)] text-muted text-sm">
-                <th className="py-3 px-4 font-medium">Nome do Produto</th>
-                <th className="py-3 px-4 font-medium">Código</th>
-                <th className="py-3 px-4 font-medium">Última Compra</th>
-                <th className="py-3 px-4 font-medium">Última Venda</th>
-                <th className="py-3 px-4 font-medium text-center">Saídas ({salesPeriod === 'today' ? 'Hoje' : salesPeriod === 'week' ? '7d' : salesPeriod === 'month' ? '30d' : 'Ano'})</th>
-                <th className="py-3 px-2 font-medium text-right">Estoque</th>
-                <th className="py-3 px-2 font-medium text-center">Compra</th>
-                <th className="py-3 px-2 font-medium text-right">Custo</th>
-                <th className="py-3 px-2 font-medium text-right">Lucro</th>
-                <th className="py-3 px-2 font-medium text-right">Margem</th>
-                <th className="py-3 px-2 font-medium text-right">Venda</th>
-                <th className="py-3 px-2 font-medium text-right">Ações</th>
+              <tr className="border-b border-[var(--border)] text-muted text-xs uppercase tracking-wide">
+                <th className="py-2 px-2 font-medium">Produto / Descrição</th>
+                <th className="py-2 px-2 font-medium">Código</th>
+                <th className="py-2 px-2 font-medium">Últ. Compra</th>
+                <th className="py-2 px-2 font-medium">Últ. Venda</th>
+                <th className="py-2 px-2 font-medium text-center">Saídas ({salesPeriod === 'today' ? 'Hoje' : salesPeriod === 'week' ? '7d' : salesPeriod === 'month' ? '30d' : 'Ano'})</th>
+                <th className="py-2 px-2 font-medium text-right">Estoque</th>
+                <th className="py-2 px-2 font-medium text-center">Compra</th>
+                <th className="py-2 px-2 font-medium text-right">Custo</th>
+                <th className="py-2 px-2 font-medium text-right">Lucro</th>
+                <th className="py-2 px-2 font-medium text-right">Margem</th>
+                <th className="py-2 px-2 font-medium text-right">Venda</th>
+                <th className="py-2 px-2 font-medium text-right">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-sm">
               {sortedProducts?.map((product) => {
                 const stats = productStats[product.id!];
                 const periodSales = stats?.currentPeriodSales || 0;
@@ -399,14 +402,14 @@ export const Inventory = () => {
 
                 return (
                   <tr key={product.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-surface-hover)]">
-                    <td className="py-3 px-4 font-bold">
+                    <td className="py-2 px-2 font-bold whitespace-normal min-w-[200px]">
                       {product.name}
-                      {product.brand && <span className="ml-2 text-xs text-muted font-normal bg-[var(--bg-surface)] px-2 py-0.5 rounded">{product.brand}</span>}
+                      {(product.brand || product.model) && <span className="ml-2 text-[10px] text-muted font-normal bg-[var(--bg-surface)] px-1.5 py-0.5 rounded uppercase">{[product.brand, product.model].filter(Boolean).join(' / ')}</span>}
                     </td>
-                    <td className="py-3 px-4 text-sm font-mono text-muted">{product.code || '-'}</td>
+                    <td className="py-2 px-2 text-xs font-mono text-muted">{product.code || '-'}</td>
                     
                     {/* Last Purchase */}
-                    <td className="py-3 px-4 text-xs text-muted">
+                    <td className="py-2 px-2 text-xs text-muted">
                       {lastPurchDateStr ? (
                         <div>
                           <div>{lastPurchDateStr}</div>
@@ -416,7 +419,7 @@ export const Inventory = () => {
                     </td>
 
                     {/* Last Sale */}
-                    <td className="py-3 px-4 text-xs">
+                    <td className="py-2 px-2 text-xs">
                       {lastSoldDateStr ? (
                         <span className="text-white font-medium">{lastSoldDateStr}</span>
                       ) : (
@@ -425,7 +428,7 @@ export const Inventory = () => {
                     </td>
 
                     {/* Sales in period */}
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-2 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         {periodSales > 0 ? (
                           <>
@@ -439,33 +442,35 @@ export const Inventory = () => {
                     </td>
 
                     {/* Stock badge */}
-                    <td className="py-3 px-2 text-right">
+                    <td className="py-2 px-2 text-right">
                       {getStockBadge(product)}
                     </td>
 
                     {/* Purchase suggestion - compact */}
-                    <td className="py-3 px-2 text-center">
-                      {hasInventoryByProduct(product) ? (
-                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${suggestedBadgeClass}`}>
+                    <td className="py-2 px-2 text-center">
+                      {hasInventoryByProduct(product) && suggestedQty > 0 ? (
+                        <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${suggestedBadgeClass}`}>
                           {suggestedLabel}
                         </span>
-                      ) : (
-                        <span className="text-xs text-muted">-</span>
-                      )}
+                      ) : hasInventoryByProduct(product) ? (
+                        <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${suggestedBadgeClass}`}>
+                          {suggestedLabel}
+                        </span>
+                      ) : <span className="text-xs text-muted">-</span>}
                     </td>
 
-                    {/* Cost */}
-                    <td className="py-3 px-2 text-right text-xs font-medium text-muted">
-                      {hasInventoryByProduct(product) ? `R$ ${(product.costPrice || 0).toFixed(2).replace('.', ',')}` : '-'}
+                    {/* Custo column */}
+                    <td className="py-2 px-2 text-right text-muted text-xs">
+                      {hasInventoryByProduct(product) && product.costPrice ? `R$ ${product.costPrice.toFixed(2).replace('.', ',')}` : '-'}
                     </td>
 
                     {/* Lucro column */}
-                    <td className="py-3 px-2 text-right whitespace-nowrap">
+                    <td className="py-2 px-2 text-right">
                       {hasInventoryByProduct(product) && product.costPrice > 0 ? (() => {
                         const profit = product.price - (product.costPrice || 0);
                         const isPos = profit > 0;
                         return (
-                          <span className={`font-bold text-xs ${isPos ? 'text-success' : 'text-danger'}`}>
+                          <span className={`font-bold text-[11px] ${isPos ? 'text-success' : 'text-danger'}`}>
                             {isPos ? '+' : ''}R$ {profit.toFixed(2).replace('.', ',')}
                           </span>
                         );
@@ -473,7 +478,7 @@ export const Inventory = () => {
                     </td>
 
                     {/* Margem column */}
-                    <td className="py-3 px-2 text-right whitespace-nowrap">
+                    <td className="py-2 px-2 text-right">
                       {hasInventoryByProduct(product) && product.costPrice > 0 ? (() => {
                         const profit = product.price - (product.costPrice || 0);
                         const margin = (profit / (product.costPrice || 1)) * 100;
@@ -482,26 +487,28 @@ export const Inventory = () => {
                           margin > 0   ? 'bg-orange-500/20 text-orange-400' :
                                          'bg-danger/20 text-danger';
                         return (
-                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${badgeColor}`}>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeColor}`}>
                             {margin.toFixed(0)}%
                           </span>
                         );
                       })() : <span className="text-xs text-muted">-</span>}
                     </td>
 
-                    <td className="py-3 px-2 text-right font-bold text-success text-sm">R$ {product.price.toFixed(2).replace('.', ',')}</td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      {hasInventoryByProduct(product) && (
-                        <button className="p-2 text-primary hover:bg-primary/20 rounded transition-colors cursor-pointer" title="Registrar Compra (Estoque)" onClick={() => { setEditingProduct(product); setIsAddStockModalOpen(true); setStockEntry({ qty: '', cost: product.costPrice ? product.costPrice.toString() : '' }); }}>
-                          <Plus size={18} />
+                    <td className="py-2 px-2 text-right font-bold text-success text-sm">R$ {product.price.toFixed(2).replace('.', ',')}</td>
+                    <td className="py-2 px-2">
+                      <div className="flex items-center justify-end flex-nowrap gap-1">
+                        {hasInventoryByProduct(product) && (
+                          <button className="p-1 text-primary hover:bg-primary/20 rounded transition-colors cursor-pointer" title="Registrar Compra (Estoque)" onClick={() => { setEditingProduct(product); setIsAddStockModalOpen(true); setStockEntry({ qty: '', cost: product.costPrice ? product.costPrice.toString() : '' }); }}>
+                            <Plus size={16} />
+                          </button>
+                        )}
+                        <button className="p-1 text-muted hover:text-primary transition-colors cursor-pointer" title="Editar Produto" onClick={() => handleOpenModal(product)}>
+                          <Edit2 size={16} />
                         </button>
-                      )}
-                      <button className="p-2 text-muted hover:text-primary transition-colors ml-1 cursor-pointer" title="Editar Produto" onClick={() => handleOpenModal(product)}>
-                        <Edit2 size={18} />
-                      </button>
-                      <button className="p-2 text-muted hover:text-danger transition-colors ml-1 cursor-pointer" title="Excluir Produto" onClick={() => product.id && handleDelete(product.id)}>
-                        <Trash2 size={18} />
-                      </button>
+                        <button className="p-1 text-muted hover:text-danger transition-colors cursor-pointer" title="Excluir Produto" onClick={() => product.id && handleDelete(product.id)}>
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -517,8 +524,36 @@ export const Inventory = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="glass-panel w-full max-w-md p-6">
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 9999, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)', 
+            backdropFilter: 'blur(4px)',
+            padding: '16px'
+          }}
+          className="animate-fade-in"
+        >
+          <div 
+            style={{ 
+              backgroundColor: '#1e293b', 
+              border: '2px solid #3b82f6', 
+              borderRadius: '16px', 
+              padding: '24px', 
+              maxWidth: '500px', 
+              width: '100%', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
             <h2 className="text-xl font-bold mb-4">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
             <form onSubmit={handleSave} className="flex flex-col gap-4">
               
@@ -568,7 +603,7 @@ export const Inventory = () => {
                 </div>
               </label>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="label">Código (Opcional)</label>
                   <input 
@@ -587,6 +622,16 @@ export const Inventory = () => {
                     placeholder="Ex: Gold, Jas..."
                     value={formData.brand}
                     onChange={e => setFormData({ ...formData, brand: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Modelo (Opcional)</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    placeholder="Ex: Stam, Aliança..."
+                    value={formData.model}
+                    onChange={e => setFormData({ ...formData, model: e.target.value })}
                   />
                 </div>
               </div>

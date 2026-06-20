@@ -96,6 +96,7 @@ export const SalesHistory = () => {
       if (m === 'pix') return 'Pix';
       if (m === 'credit') return 'Crédito';
       if (m === 'debit') return 'Débito';
+      if (m === 'split') return 'Múltiplo';
       return m;
     };
 
@@ -154,7 +155,10 @@ export const SalesHistory = () => {
           <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ ${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
           ${t.discount && t.discount > 0 ? `<tr><td class="bold">Desconto Extra:</td><td class="text-right">-R$ ${t.discount.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           <tr><td class="bold header-title">TOTAL A PAGAR:</td><td class="text-right header-title">R$ ${t.total.toFixed(2).replace('.', ',')}</td></tr>
-          <tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${getPaymentMethodName(t.paymentMethod)}</td></tr>
+          ${t.paymentMethod === 'split' && t.splitPayments ? `
+            <tr><td colspan="2" class="bold text-center" style="padding-top: 5px;">PAGAMENTO MÚLTIPLO</td></tr>
+            ${t.splitPayments.map(p => `<tr><td>Parcial (${getPaymentMethodName(p.method)}):</td><td class="text-right">R$ ${p.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
+          ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${getPaymentMethodName(t.paymentMethod)}</td></tr>`}
         </table>
         <div class="divider"></div>
         <div class="text-center">Obrigado pela preferência!</div>
@@ -317,7 +321,8 @@ export const SalesHistory = () => {
                       {t.paymentMethod === 'cash' ? 'Dinheiro' : 
                        t.paymentMethod === 'credit' ? 'Crédito' : 
                        t.paymentMethod === 'debit' ? 'Débito' : 
-                       t.paymentMethod === 'pix' ? 'Pix' : t.paymentMethod}
+                       t.paymentMethod === 'pix' ? 'Pix' : 
+                       t.paymentMethod === 'split' ? 'Múltiplo' : t.paymentMethod}
                     </td>
                     <td className={`py-3 px-4 text-right font-bold ${isSale ? 'text-success' : 'text-danger'}`}>
                       {isSale ? '+' : '-'} R$ {t.total.toFixed(2).replace('.', ',')}
@@ -391,16 +396,18 @@ export const SalesHistory = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="label">Forma de Pagamento</label>
+                  <label className="label">Forma de Pagamento {editingTx.paymentMethod === 'split' ? '(Múltiplo - Não Editável)' : ''}</label>
                   <select 
                     className="input font-bold uppercase" 
                     value={editingTx.paymentMethod} 
                     onChange={e => setEditingTx({...editingTx, paymentMethod: e.target.value as PaymentMethod})}
+                    disabled={editingTx.paymentMethod === 'split'}
                   >
                     <option value="cash">Dinheiro</option>
                     <option value="pix">PIX</option>
                     <option value="credit">Crédito</option>
                     <option value="debit">Débito</option>
+                    <option value="split">Múltiplo</option>
                   </select>
                 </div>
               </div>

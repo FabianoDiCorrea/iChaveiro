@@ -1,8 +1,20 @@
 import Dexie, { type EntityTable } from 'dexie';
 
 export type Profile = 'chaveiro' | 'fabiano';
-export type PaymentMethod = 'cash' | 'debit' | 'credit' | 'pix';
+export type PaymentMethod = 'cash' | 'debit' | 'credit' | 'pix' | 'split';
 export type ServiceType = 'key' | 'plier' | 'scissor' | 'knife' | 'spring' | 'screw' | 'other' | 'custom';
+
+export interface Loss {
+  id?: number;
+  date: Date;
+  productId: number;
+  productCode: string;
+  productName: string;
+  quantity: number;
+  type: 'return' | 'error';
+  operator: Profile;
+  notes?: string;
+}
 
 export interface TransactionItem {
   service: ServiceType;
@@ -14,6 +26,16 @@ export interface TransactionItem {
   productId?: number;
 }
 
+export interface PendingSale {
+  id?: number;
+  profile: Profile;
+  clientName: string;
+  clientPhone?: string;
+  items: TransactionItem[];
+  total: number;
+  date: Date;
+}
+
 export interface Transaction {
   id?: number;
   profile: Profile;
@@ -23,6 +45,7 @@ export interface Transaction {
   discount?: number;
   machineFee?: number;
   paymentMethod: PaymentMethod;
+  splitPayments?: { method: PaymentMethod; amount: number }[];
   clientId?: number;
   clientName?: string;
   clientCode?: string;
@@ -77,6 +100,8 @@ const db = new Dexie('iChaveiroDB') as Dexie & {
   clients: EntityTable<Client, 'id'>;
   products: EntityTable<Product, 'id'>;
   cashSessions: EntityTable<CashSession, 'id'>;
+  losses: EntityTable<Loss, 'id'>;
+  pendingSales: EntityTable<PendingSale, 'id'>;
 };
 
 db.version(5).stores({
@@ -109,6 +134,23 @@ db.version(7).stores({
     }
     if (product.customCategory === undefined) product.customCategory = '';
   });
+});
+
+db.version(8).stores({
+  transactions: '++id, profile, type, paymentMethod, date, clientId',
+  clients: '++id, name, phone, code',
+  products: '++id, profile, name, code, brand, serviceType, hasStock',
+  cashSessions: '++id, profile, status, openedAt, closedAt',
+  losses: '++id, date, productId, type, operator'
+});
+
+db.version(9).stores({
+  transactions: '++id, profile, type, paymentMethod, date, clientId',
+  clients: '++id, name, phone, code',
+  products: '++id, profile, name, code, brand, serviceType, hasStock',
+  cashSessions: '++id, profile, status, openedAt, closedAt',
+  losses: '++id, date, productId, type, operator',
+  pendingSales: '++id, profile, date, clientName'
 });
 
 export { db };

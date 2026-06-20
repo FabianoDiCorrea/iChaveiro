@@ -3,11 +3,15 @@ import { db, type ServiceType, type PaymentMethod, type TransactionItem } from '
 import type { Profile } from '../db/db';
 import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { RegisterLossModal } from '../components/RegisterLossModal';
 
 export const Pos = () => {
   const [transactionProfile, setTransactionProfile] = useState<Profile>('chaveiro');
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number }[]>([]);
+  const [currentSplitMethod, setCurrentSplitMethod] = useState<PaymentMethod>('pix');
+  const [currentSplitAmount, setCurrentSplitAmount] = useState<string>('');
   const [clientCode, setClientCode] = useState('');
   const [searchProduct, setSearchProduct] = useState('');
   const [discount, setDiscount] = useState<string>('');
@@ -15,6 +19,14 @@ export const Pos = () => {
   const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showLossModal, setShowLossModal] = useState(false);
+
+  // Pending Sales states
+  const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [pendingClientName, setPendingClientName] = useState('');
+  const [pendingClientPhone, setPendingClientPhone] = useState('');
 
   // Cash Register (Caixa) Session states
   const [openRegisterCash, setOpenRegisterCash] = useState<string>('50,00'); // Fundo padrão inicial sugerido
@@ -54,10 +66,19 @@ export const Pos = () => {
     let credit = 0;
 
     for (const t of filteredSales) {
-      if (t.paymentMethod === 'cash') cash += t.total;
-      else if (t.paymentMethod === 'pix') pix += t.total;
-      else if (t.paymentMethod === 'debit') debit += t.total;
-      else if (t.paymentMethod === 'credit') credit += t.total;
+      if (t.paymentMethod === 'split' && t.splitPayments) {
+        for (const p of t.splitPayments) {
+          if (p.method === 'cash') cash += p.amount;
+          else if (p.method === 'pix') pix += p.amount;
+          else if (p.method === 'debit') debit += p.amount;
+          else if (p.method === 'credit') credit += p.amount;
+        }
+      } else {
+        if (t.paymentMethod === 'cash') cash += t.total;
+        else if (t.paymentMethod === 'pix') pix += t.total;
+        else if (t.paymentMethod === 'debit') debit += t.total;
+        else if (t.paymentMethod === 'credit') credit += t.total;
+      }
     }
 
     let expenses = 0;
@@ -81,6 +102,11 @@ export const Pos = () => {
     () => db.products.toArray(),
     [transactionProfile]
   );
+
+  const pendingSales = useLiveQuery(
+    () => db.pendingSales.where('profile').equals(transactionProfile).toArray(),
+    [transactionProfile]
+  ) || [];
 
   const parseSearchInput = (input: string) => {
     const match = input.match(/^(.+?)(?:[xX*]\s*(\d+))?$/);
@@ -203,30 +229,157 @@ export const Pos = () => {
   const handleCheckout = () => {
     if (items.length === 0) return alert('Adicione itens ao caixa.');
     if (items.some(i => i.price <= 0)) return alert('Verifique os preços dos itens. Nenhum item pode ter preço 0.');
+    
+    if (paymentMethod === 'split') {
+      const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
+      if (Math.abs(splitTotal - totalAmount) > 0.01) {
+        return alert(`O total dos pagamentos (R$ ${splitTotal.toFixed(2).replace('.', ',')}) deve ser exatamente igual ao total da venda (R$ ${totalAmount.toFixed(2).replace('.', ',')}).`);
+      }
+    }
+    
     setShowConfirmModal(true);
+  };
+
+  const handlePendingClick = () => {
+    if (items.length === 0) return alert('Adicione itens para salvar a retirada.');
+    setPendingClientName('');
+    setPendingClientPhone('');
+    setShowPendingModal(true);
+  };
+
+  const handleCancelCart = () => {
+    setItems([]);
+    setClientCode('');
+    setDiscount('');
+    setCashReceived('');
+    setCustomUnitPrice('');
+    setSplitPayments([]);
+    setActivePendingSaleId(null);
+    if (searchInputRef.current) searchInputRef.current.focus();
+  };
+
+  const savePendingSale = async () => {
+    if (!pendingClientName.trim()) return alert('Informe o nome do cliente.');
+
+    try {
+      await db.transaction('rw', db.pendingSales, db.products, async () => {
+        // Decrease stock if it hasn't been reserved yet
+        if (!activePendingSaleId) {
+          for (const item of items) {
+            if (item.productId) {
+              const product = await db.products.get(item.productId);
+              if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
+                await db.products.update(product.id!, { stock: product.stock - item.quantity });
+              }
+            }
+          }
+        }
+
+        if (activePendingSaleId) {
+          await db.pendingSales.update(activePendingSaleId, {
+            clientName: pendingClientName,
+            clientPhone: pendingClientPhone,
+            items: items,
+            total: totalAmount,
+            date: new Date()
+          });
+        } else {
+          await db.pendingSales.add({
+            profile: transactionProfile,
+            clientName: pendingClientName,
+            clientPhone: pendingClientPhone,
+            items: items,
+            total: totalAmount,
+            date: new Date()
+          });
+        }
+      });
+
+      setShowPendingModal(false);
+      setItems([]);
+      setClientCode('');
+      setDiscount('');
+      setActivePendingSaleId(null);
+      if (searchInputRef.current) searchInputRef.current.focus();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar retirada pendente.');
+    }
+  };
+
+  const loadPendingSale = (sale: any) => {
+    setActivePendingSaleId(sale.id!);
+    setItems(sale.items);
+    setClientCode(sale.clientName);
+    setDiscount('');
+    setCashReceived('');
+    setCustomUnitPrice('');
+    setSplitPayments([]);
+    if (searchInputRef.current) searchInputRef.current.focus();
+  };
+
+  const discardPendingSale = async (sale: any) => {
+    if (!window.confirm(`Tem certeza que deseja excluir a retirada pendente de ${sale.clientName}? Os produtos serão devolvidos ao estoque.`)) return;
+    
+    try {
+      await db.transaction('rw', db.pendingSales, db.products, async () => {
+        // Return stock
+        for (const item of sale.items) {
+          if (item.productId) {
+            const product = await db.products.get(item.productId);
+            if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
+              await db.products.update(product.id!, { stock: product.stock + item.quantity });
+            }
+          }
+        }
+        await db.pendingSales.delete(sale.id!);
+      });
+      if (activePendingSaleId === sale.id) {
+        handleCancelCart(); // clear cart if it was the active one
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir retirada pendente.');
+    }
   };
 
   const completeCheckout = async (shouldPrint: boolean) => {
     try {
-      await db.transaction('rw', db.transactions, db.products, async () => {
+      await db.transaction('rw', db.transactions, db.products, db.pendingSales, async () => {
         // Decrement stock for products (Only for keys, springs and screws)
-        for (const item of items) {
-          if (item.productId) {
-            const product = await db.products.get(item.productId);
-            if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
-              await db.products.update(product.id!, { stock: product.stock - item.quantity });
+        // Only decrement if NOT coming from a pending sale (because it was already decremented when reserved)
+        if (!activePendingSaleId) {
+          for (const item of items) {
+            if (item.productId) {
+              const product = await db.products.get(item.productId);
+              if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
+                await db.products.update(product.id!, { stock: product.stock - item.quantity });
+              }
             }
           }
         }
 
         let calculatedFee = 0;
-        if (transactionProfile === 'chaveiro') {
-          if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0199;
-          else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0498;
-        } else if (transactionProfile === 'fabiano') {
-          if (paymentMethod === 'pix') calculatedFee = totalAmount * 0.0045;
-          else if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0198;
-          else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0486;
+        if (paymentMethod === 'split') {
+          for (const p of splitPayments) {
+            if (transactionProfile === 'chaveiro') {
+              if (p.method === 'debit') calculatedFee += p.amount * 0.0199;
+              else if (p.method === 'credit') calculatedFee += p.amount * 0.0498;
+            } else if (transactionProfile === 'fabiano') {
+              if (p.method === 'pix') calculatedFee += p.amount * 0.0045;
+              else if (p.method === 'debit') calculatedFee += p.amount * 0.0198;
+              else if (p.method === 'credit') calculatedFee += p.amount * 0.0486;
+            }
+          }
+        } else {
+          if (transactionProfile === 'chaveiro') {
+            if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0199;
+            else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0498;
+          } else if (transactionProfile === 'fabiano') {
+            if (paymentMethod === 'pix') calculatedFee = totalAmount * 0.0045;
+            else if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0198;
+            else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0486;
+          }
         }
 
         await db.transactions.add({
@@ -237,9 +390,14 @@ export const Pos = () => {
           discount: discountValue > 0 ? discountValue : undefined,
           machineFee: calculatedFee > 0 ? calculatedFee : undefined,
           paymentMethod,
+          splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
           clientCode: clientCode || undefined,
           date: new Date()
         });
+
+        if (activePendingSaleId) {
+          await db.pendingSales.delete(activePendingSaleId);
+        }
       }); // End transaction
 
       // Imprimir Cupom
@@ -320,7 +478,10 @@ export const Pos = () => {
                 ${paymentMethod === 'cash' ? `
                   <tr><td>Recebido:</td><td class="text-right">R$ ${(parseCurrency(cashReceived) || totalAmount).toFixed(2).replace('.', ',')}</td></tr>
                   <tr><td class="bold">Troco:</td><td class="text-right bold">R$ ${changeValue.toFixed(2).replace('.', ',')}</td></tr>
-                ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod}</td></tr>`}
+                ` : paymentMethod === 'split' ? `
+                  <tr><td colspan="2" class="bold text-center" style="padding-top: 5px;">PAGAMENTO MÚLTIPLO</td></tr>
+                  ${splitPayments.map(p => `<tr><td>Parcial (${p.method === 'cash' ? 'Dinheiro' : p.method === 'credit' ? 'Crédito' : p.method === 'debit' ? 'Débito' : 'PIX'}):</td><td class="text-right">R$ ${p.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
+                ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
               </table>
               <div class="divider"></div>
               <div class="text-center">Obrigado pela preferencia!</div>
@@ -342,6 +503,8 @@ export const Pos = () => {
       setDiscount('');
       setCashReceived('');
       setCustomUnitPrice('');
+      setSplitPayments([]);
+      setActivePendingSaleId(null);
       if (searchInputRef.current) searchInputRef.current.focus();
     } catch (error) {
       console.error(error);
@@ -648,7 +811,7 @@ export const Pos = () => {
   }
 
   return (
-    <div className="flex flex-col h-full animate-fade-in font-sans">
+    <div className="flex flex-col h-full overflow-hidden animate-fade-in font-sans">
       <style>{`
         .pos-received-input {
           background-color: rgba(0, 0, 0, 0.4) !important;
@@ -758,6 +921,26 @@ export const Pos = () => {
             Registrar Despesa
           </button>
           <button
+            onClick={() => setShowLossModal(true)}
+            style={{
+              backgroundColor: '#f97316',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+            onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
+          >
+            Registrar Perda
+          </button>
+          <button
             onClick={() => {
               const expected = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
               setCloseRegisterCash(expected.toFixed(2).replace('.', ','));
@@ -785,9 +968,9 @@ export const Pos = () => {
         </div>
       </div>
 
-      <div className="flex gap-6 flex-1 min-h-0">
+      <div className="flex gap-6 flex-1 min-h-0 overflow-hidden pb-4">
         {/* Left column: Inputs and Info */}
-        <div className="w-[500px] flex flex-col gap-5 border-r-4 border-red-600 pr-6">
+        <div className="w-[500px] flex flex-col gap-4 border-r-4 border-red-600 pr-6 overflow-y-auto custom-scrollbar">
           <form onSubmit={handleFastAdd} className="flex flex-col gap-2 mb-2">
             <label className="text-white font-bold px-1 uppercase text-lg">Código do Produto</label>
             <div className="flex gap-3 items-stretch w-full">
@@ -797,7 +980,7 @@ export const Pos = () => {
                   ref={searchInputRef}
                   autoFocus
                   className="w-full font-extrabold px-3 bg-transparent outline-none text-black tracking-widest text-center"
-                  style={{ fontSize: '2.8rem', height: '75px' }}
+                  style={{ fontSize: '2.2rem', height: '55px' }}
                   value={searchProduct}
                   onChange={e => setSearchProduct(e.target.value)}
                 />
@@ -815,7 +998,7 @@ export const Pos = () => {
 
           {/* Product Preview Info Area */}
           {currentProduct ? (
-            <div className="bg-[var(--bg-surface)] rounded-lg shadow-lg p-6 border-l-8 border-yellow-500 flex flex-col">
+            <div className="bg-[var(--bg-surface)] rounded-lg shadow-lg p-4 border-l-8 border-yellow-500 flex flex-col">
               <div 
                 style={{ fontSize: '3.2rem', lineHeight: '1.2' }} 
                 className="text-yellow-400 font-black uppercase tracking-wide break-words"
@@ -846,81 +1029,117 @@ export const Pos = () => {
               </div>
             </div>
           ) : (
-            <div className="bg-[var(--bg-surface)] rounded-lg shadow-lg p-6 border border-dashed border-[var(--border)] text-center text-gray-500 font-bold text-xl uppercase py-10">
+            <div className="bg-[var(--bg-surface)] rounded-lg shadow-lg p-4 border border-dashed border-[var(--border)] text-center text-gray-500 font-bold text-xl uppercase py-4">
               Nenhum produto selecionado
             </div>
           )}
 
-          <div style={{ height: '80px' }} className="flex-shrink-0"></div>
-          <div className="bg-[var(--bg-surface)] p-5 rounded shadow-lg border-l-4 border-red-600 flex flex-col gap-4">
+          <div className="bg-[var(--bg-surface)] p-4 rounded shadow-lg border-l-4 border-red-600 flex flex-col gap-3">
             <div className="text-base font-bold uppercase mb-2 border-b border-[var(--border)] pb-2 text-white">Configurações da Venda</div>
 
             <div>
               <label className="text-sm mb-2 block font-bold text-muted uppercase tracking-wide">Forma de Pagamento</label>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 <button
-                  className={`btn py-3 font-bold flex flex-col items-center justify-center gap-2 payment-btn ${paymentMethod === 'cash' ? 'payment-active' : 'opacity-80'}`}
+                  className={`btn py-2 font-bold flex flex-col items-center justify-center gap-1 payment-btn ${paymentMethod === 'cash' ? 'payment-active' : 'opacity-80'}`}
                   style={{ 
                     backgroundColor: '#16a34a', 
                     color: '#ffffff', 
-                    border: paymentMethod === 'cash' ? '4px solid #ffffff' : 'none', 
-                    borderRadius: '8px',
-                    boxShadow: paymentMethod === 'cash' ? '0 0 15px rgba(22, 163, 74, 0.6)' : 'none'
+                    border: paymentMethod === 'cash' ? '3px solid #ffffff' : 'none', 
+                    borderRadius: '6px',
+                    boxShadow: paymentMethod === 'cash' ? '0 0 10px rgba(22, 163, 74, 0.6)' : 'none'
                   }}
                   onClick={() => setPaymentMethod('cash')}
                 >
-                  <Banknote size={32} />
-                  <span className="text-base uppercase font-extrabold">Dinheiro</span>
+                  <Banknote size={20} />
+                  <span className="text-[10px] uppercase font-extrabold">Dinheiro</span>
                 </button>
                 <button
-                  className={`btn py-3 font-bold flex flex-col items-center justify-center gap-2 payment-btn ${paymentMethod === 'pix' ? 'payment-active' : 'opacity-80'}`}
+                  className={`btn py-2 font-bold flex flex-col items-center justify-center gap-1 payment-btn ${paymentMethod === 'pix' ? 'payment-active' : 'opacity-80'}`}
                   style={{ 
                     backgroundColor: '#14b8a6', 
                     color: '#ffffff', 
-                    border: paymentMethod === 'pix' ? '4px solid #ffffff' : 'none', 
-                    borderRadius: '8px',
-                    boxShadow: paymentMethod === 'pix' ? '0 0 15px rgba(20, 184, 166, 0.6)' : 'none'
+                    border: paymentMethod === 'pix' ? '3px solid #ffffff' : 'none', 
+                    borderRadius: '6px',
+                    boxShadow: paymentMethod === 'pix' ? '0 0 10px rgba(20, 184, 166, 0.6)' : 'none'
                   }}
                   onClick={() => setPaymentMethod('pix')}
                 >
-                  <Smartphone size={32} />
-                  <span className="text-base uppercase font-extrabold">PIX</span>
+                  <Smartphone size={20} />
+                  <span className="text-[10px] uppercase font-extrabold">PIX</span>
                 </button>
                 <button
-                  className={`btn py-3 font-bold flex flex-col items-center justify-center gap-2 payment-btn ${paymentMethod === 'debit' ? 'payment-active' : 'opacity-80'}`}
+                  className={`btn py-2 font-bold flex flex-col items-center justify-center gap-1 payment-btn ${paymentMethod === 'debit' ? 'payment-active' : 'opacity-80'}`}
                   style={{ 
                     backgroundColor: '#2563eb', 
                     color: '#ffffff', 
-                    border: paymentMethod === 'debit' ? '4px solid #ffffff' : 'none', 
-                    borderRadius: '8px',
-                    boxShadow: paymentMethod === 'debit' ? '0 0 15px rgba(37, 99, 235, 0.6)' : 'none'
+                    border: paymentMethod === 'debit' ? '3px solid #ffffff' : 'none', 
+                    borderRadius: '6px',
+                    boxShadow: paymentMethod === 'debit' ? '0 0 10px rgba(37, 99, 235, 0.6)' : 'none'
                   }}
                   onClick={() => setPaymentMethod('debit')}
                 >
-                  <CreditCard size={32} />
-                  <span className="text-base uppercase font-extrabold">Débito</span>
+                  <CreditCard size={20} />
+                  <span className="text-[10px] uppercase font-extrabold">Débito</span>
                 </button>
                 <button
-                  className={`btn py-3 font-bold flex flex-col items-center justify-center gap-2 payment-btn ${paymentMethod === 'credit' ? 'payment-active' : 'opacity-80'}`}
+                  className={`btn py-2 font-bold flex flex-col items-center justify-center gap-1 payment-btn ${paymentMethod === 'credit' ? 'payment-active' : 'opacity-80'}`}
                   style={{ 
                     backgroundColor: '#9333ea', 
                     color: '#ffffff', 
-                    border: paymentMethod === 'credit' ? '4px solid #ffffff' : 'none', 
-                    borderRadius: '8px',
-                    boxShadow: paymentMethod === 'credit' ? '0 0 15px rgba(147, 51, 234, 0.6)' : 'none'
+                    border: paymentMethod === 'credit' ? '3px solid #ffffff' : 'none', 
+                    borderRadius: '6px',
+                    boxShadow: paymentMethod === 'credit' ? '0 0 10px rgba(147, 51, 234, 0.6)' : 'none'
                   }}
                   onClick={() => setPaymentMethod('credit')}
                 >
-                  <CreditCard size={32} />
-                  <span className="text-base uppercase font-extrabold">Crédito</span>
+                  <CreditCard size={20} />
+                  <span className="text-[10px] uppercase font-extrabold">Crédito</span>
                 </button>
               </div>
+              <button
+                className={`btn mt-1 py-1.5 w-full font-bold flex items-center justify-center gap-2 payment-btn ${paymentMethod === 'split' ? 'payment-active' : 'opacity-80'}`}
+                style={{ 
+                  backgroundColor: '#f59e0b', 
+                  color: '#ffffff', 
+                  border: paymentMethod === 'split' ? '3px solid #ffffff' : 'none', 
+                  borderRadius: '6px',
+                  boxShadow: paymentMethod === 'split' ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
+                }}
+                onClick={() => {
+                  setPaymentMethod('split');
+                  setShowSplitModal(true);
+                }}
+              >
+                <Tag size={24} />
+                <span className="text-sm uppercase font-extrabold">Múltiplo</span>
+              </button>
+
+              {paymentMethod === 'split' && splitPayments.length > 0 && (
+                <div className="mt-4 p-3 bg-black/30 rounded border border-yellow-500/50">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-yellow-500 font-bold uppercase text-xs">Pagamentos Parciais:</span>
+                    <button onClick={() => setShowSplitModal(true)} className="text-blue-400 font-bold text-xs hover:underline uppercase">Editar</button>
+                  </div>
+                  {splitPayments.map((sp, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm mb-1 bg-gray-800/50 px-2 py-1 rounded">
+                      <span className="uppercase font-bold text-gray-300">{sp.method === 'cash' ? 'Dinheiro' : sp.method === 'credit' ? 'Crédito' : sp.method === 'debit' ? 'Débito' : 'PIX'}</span>
+                      <span className="font-mono text-green-400 font-bold">R$ {sp.amount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  ))}
+                  {totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0) > 0 && (
+                     <div className="text-red-400 font-bold text-xs mt-2 uppercase border-t border-gray-600/50 pt-2">
+                       Falta: R$ {Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)).toFixed(2).replace('.', ',')}
+                     </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
               <label className="text-sm mb-1 block font-bold text-muted uppercase">Faturamento</label>
               <select
-                className="w-full p-3 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
+                className="w-full p-2 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
                 value={transactionProfile}
                 onChange={e => setTransactionProfile(e.target.value as Profile)}
               >
@@ -934,7 +1153,7 @@ export const Pos = () => {
                 <label className="text-sm mb-1 block font-bold text-muted uppercase">Desconto (R$)</label>
                 <input
                   type="text"
-                  className="w-full p-3 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
+                  className="w-full p-2 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
                   placeholder="0,00"
                   value={discount}
                   onChange={e => setDiscount(e.target.value.replace(/[^0-9.,]/g, ''))}
@@ -957,7 +1176,7 @@ export const Pos = () => {
                 <label className="text-sm mb-1 block font-bold text-muted uppercase">Vlr. Unit. c/ Desc</label>
                 <input
                   type="text"
-                  className="w-full p-3 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
+                  className="w-full p-2 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
                   placeholder="0,00"
                   value={customUnitPrice}
                   onChange={e => handleCustomUnitPriceChange(e.target.value.replace(/[^0-9.,]/g, ''))}
@@ -983,7 +1202,7 @@ export const Pos = () => {
               <label className="text-sm mb-1 block font-bold text-muted uppercase">Cliente/Empresa (Opcional Cupom)</label>
               <input
                 type="text"
-                className="w-full p-3 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
+                className="w-full p-2 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
                 placeholder=""
                 value={clientCode}
                 onChange={e => setClientCode(e.target.value)}
@@ -991,12 +1210,29 @@ export const Pos = () => {
             </div>
 
             <button
-              className="w-full py-5 text-2xl font-extrabold rounded shadow transition-colors mt-4 flex justify-center items-center gap-3 uppercase hover:opacity-90 pos-checkout-btn"
+              className="w-full py-3 text-xl font-extrabold rounded shadow transition-colors mt-4 flex justify-center items-center gap-3 uppercase hover:opacity-90 pos-checkout-btn"
               style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none' }}
               onClick={handleCheckout}
             >
               <CheckCircle size={32} /> FINALIZAR VENDA
             </button>
+
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <button
+                className="py-2 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
+                style={{ backgroundColor: '#eab308', color: '#000000', border: 'none' }}
+                onClick={handlePendingClick}
+              >
+                Deixar Pendente
+              </button>
+              <button
+                className="py-2 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
+                style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none' }}
+                onClick={handleCancelCart}
+              >
+                Limpar / Cancelar
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1057,11 +1293,11 @@ export const Pos = () => {
             </div>
           </div>
 
-          <div style={{ height: '160px' }} className="mt-6 flex-shrink-0">
+          <div style={{ height: '130px' }} className="mt-6 flex-shrink-0">
             <div className="grid grid-cols-3 gap-6 h-full">
               {/* Subtotal Box */}
               <div 
-                style={{ backgroundColor: '#1e293b', border: '3px solid #eab308', borderRadius: '12px', padding: '20px', height: '100%' }} 
+                style={{ backgroundColor: '#1e293b', border: '3px solid #eab308', borderRadius: '12px', padding: '16px', height: '100%' }} 
                 className="flex flex-col justify-between shadow-2xl"
               >
                 <div className="text-gray-400 font-bold uppercase text-xs tracking-wider">A PAGAR (TOTAL)</div>
@@ -1081,13 +1317,25 @@ export const Pos = () => {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ fontSize: '3.5rem', fontWeight: 900, color: '#ffffff', lineHeight: 1.1 }} className="mt-2">
-                    R$ {totalAmount.toFixed(2).replace('.', ',')}
+                  <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#ffffff', lineHeight: 1.1 }} className="mt-2 whitespace-nowrap flex items-baseline gap-1">
+                    <span className="text-[1.4rem] text-gray-400">R$</span> <span>{totalAmount.toFixed(2).replace('.', ',')}</span>
                   </div>
                 )}
-                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#eab308' }} className="mt-2 uppercase tracking-wide">
-                  👉 {paymentMethod === 'cash' ? 'DINHEIRO' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'debit' ? 'DÉBITO' : 'CRÉDITO'}
-                </div>
+                {paymentMethod === 'split' ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {splitPayments.length > 0 ? splitPayments.map((sp, i) => (
+                      <span key={i} className="bg-yellow-500 text-black px-2 py-0.5 rounded text-xs font-bold uppercase whitespace-nowrap">
+                        {sp.method === 'cash' ? 'Din' : sp.method === 'pix' ? 'PIX' : sp.method === 'debit' ? 'Déb' : 'Cré'}: R$ {sp.amount.toFixed(2).replace('.', ',')}
+                      </span>
+                    )) : (
+                      <span className="text-yellow-500 font-bold uppercase text-sm">MÚLTIPLO</span>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#eab308' }} className="mt-2 uppercase tracking-wide">
+                    👉 {paymentMethod === 'cash' ? 'DINHEIRO' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'debit' ? 'DÉBITO' : 'CRÉDITO'}
+                  </div>
+                )}
               </div>
 
               {/* Total Recebido Box */}
@@ -1096,7 +1344,7 @@ export const Pos = () => {
                   backgroundColor: '#1e293b', 
                   border: '3px solid #22c55e', 
                   borderRadius: '12px', 
-                  padding: '20px', 
+                  padding: '16px', 
                   height: '100%',
                   visibility: paymentMethod === 'cash' ? 'visible' : 'hidden'
                 }} 
@@ -1104,12 +1352,12 @@ export const Pos = () => {
               >
                 <div className="text-gray-400 font-bold uppercase text-xs tracking-wider">TOTAL RECEBIDO</div>
                 <div className="relative flex items-center mt-3">
-                  <span style={{ fontSize: '1.8rem', fontWeight: 900 }} className="absolute left-3 text-gray-400">R$</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 900 }} className="absolute left-3 text-gray-400">R$</span>
                   <input
                     type="text"
                     inputMode="numeric"
-                    className="w-full text-right outline-none rounded pos-received-input py-2 pl-12 pr-3 transition-colors font-black"
-                    style={{ fontSize: '2.5rem', height: '65px' }}
+                    className="w-full text-right outline-none rounded pos-received-input py-2 pl-10 pr-3 transition-colors font-black"
+                    style={{ fontSize: '1.8rem', height: '45px' }}
                     value={cashReceived}
                     onChange={e => setCashReceived(e.target.value.replace(/[^0-9.,]/g, ''))}
                   />
@@ -1122,15 +1370,15 @@ export const Pos = () => {
                   backgroundColor: '#1e293b', 
                   border: '3px solid #3b82f6', 
                   borderRadius: '12px', 
-                  padding: '20px', 
+                  padding: '16px', 
                   height: '100%',
                   visibility: paymentMethod === 'cash' ? 'visible' : 'hidden'
                 }} 
                 className="flex flex-col justify-between shadow-2xl"
               >
                 <div className="text-gray-400 font-bold uppercase text-xs tracking-wider">TROCO</div>
-                <div style={{ fontSize: '3.5rem', fontWeight: 900, color: '#60a5fa', lineHeight: 1.1, textAlign: 'right' }} className="mt-2">
-                  R$ {changeValue.toFixed(2).replace('.', ',')}
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#60a5fa', lineHeight: 1.1, textAlign: 'right' }} className="mt-2 whitespace-nowrap flex items-baseline justify-end gap-1">
+                  <span className="text-[1.4rem] text-blue-300">R$</span> <span>{changeValue.toFixed(2).replace('.', ',')}</span>
                 </div>
                 <div style={{ fontSize: '1.3rem', fontWeight: 900, color: changeValue > 0 ? '#4ade80' : '#94a3b8', textAlign: 'right' }} className="mt-2 uppercase">
                   {changeValue > 0 ? 'DEVOLVER TROCO' : 'SEM TROCO'}
@@ -1139,8 +1387,120 @@ export const Pos = () => {
             </div>
           </div>
 
+          {/* Pending Sales List */}
+          {pendingSales.length > 0 && (
+            <div style={{ marginTop: '16px', backgroundColor: '#1e293b', borderRadius: '12px', padding: '16px', border: '2px solid #eab308', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ color: '#eab308', fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                ⏳ Vendas Pendentes (Retiradas)
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', paddingRight: '4px' }}>
+                {pendingSales.slice().sort((a, b) => a.date.getTime() - b.date.getTime()).map(sale => (
+                  <div 
+                    key={sale.id}
+                    style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}
+                  >
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+                        <div style={{ fontWeight: 900, color: '#ffffff', fontSize: '1rem', textTransform: 'uppercase' }}>{sale.clientName}</div>
+                        <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>
+                          {sale.date.toLocaleString('pt-BR')} {sale.clientPhone ? `- Tel: ${sale.clientPhone}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                        {sale.items.length} iten(s): {sale.items.map(i => i.name).join(', ').substring(0, 50)}...
+                      </div>
+                    </div>
+                    
+                    <div style={{ color: '#22c55e', fontWeight: 900, fontSize: '1.2rem', whiteSpace: 'nowrap' }}>R$ {sale.total.toFixed(2).replace('.', ',')}</div>
+                    
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button 
+                        style={{ backgroundColor: '#3b82f6', color: 'white', padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold', border: 'none', cursor: 'pointer', textTransform: 'uppercase', fontSize: '0.8rem' }}
+                        onClick={() => loadPendingSale(sale)}
+                      >
+                        Resgatar
+                      </button>
+                      <button 
+                        style={{ backgroundColor: '#7f1d1d', color: 'white', padding: '8px', borderRadius: '6px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                        title="Descartar Venda Pendente"
+                        onClick={() => discardPendingSale(sale)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
+
+
+
+      <RegisterLossModal
+        isOpen={showLossModal}
+        onClose={() => setShowLossModal(false)}
+        activeProfile={transactionProfile}
+      />
+
+      {/* Pending Modal */}
+      {showPendingModal && (
+        <div 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, 
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+          }}
+        >
+          <div 
+            style={{ 
+              backgroundColor: '#1e293b', border: '4px solid #eab308', borderRadius: '16px', padding: '32px', 
+              maxWidth: '450px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              display: 'flex', flexDirection: 'column', gap: '20px' 
+            }}
+          >
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', margin: 0, textAlign: 'center' }}>
+              Deixar Venda Pendente
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Nome do Cliente</label>
+                <input 
+                  type="text" autoFocus
+                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px', fontSize: '1.25rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
+                  value={pendingClientName} onChange={e => setPendingClientName(e.target.value)}
+                  placeholder="Nome para retirar"
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Telefone (Opcional)</label>
+                <input 
+                  type="text" 
+                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px', fontSize: '1.25rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
+                  value={pendingClientPhone} onChange={e => setPendingClientPhone(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+              <button 
+                onClick={() => setShowPendingModal(false)}
+                style={{ flex: 1, padding: '12px', backgroundColor: '#334155', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer' }}
+              >
+                Voltar
+              </button>
+              <button 
+                onClick={savePendingSale}
+                style={{ flex: 1, padding: '12px', backgroundColor: '#eab308', color: '#000000', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer' }}
+              >
+                Salvar Pendente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals for Confirmation Flow */}
       {showConfirmModal && (
@@ -1694,6 +2054,143 @@ export const Pos = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {showSplitModal && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 9999, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            backgroundColor: 'rgba(0, 0, 0, 0.85)', 
+            backdropFilter: 'blur(4px)' 
+          }}
+          className="animate-fade-in"
+        >
+          <div 
+            style={{ 
+              backgroundColor: '#1e293b', 
+              border: '4px solid #f59e0b', 
+              borderRadius: '16px', 
+              padding: '28px', 
+              maxWidth: '450px', 
+              width: '95%', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '16px',
+              color: '#ffffff'
+            }}
+            className="animate-scale-in"
+          >
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, color: '#f59e0b', textAlign: 'center' }}>
+              Pagamento Múltiplo
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.95rem', textAlign: 'center', margin: 0 }}>
+              Adicione as formas de pagamento parciais até atingir o total da venda.
+            </p>
+
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '1.05rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>Total da Venda:</span>
+                <span style={{ fontWeight: 'bold', color: '#ffffff' }}>R$ {totalAmount.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>Valor já lançado:</span>
+                <span style={{ fontWeight: 'bold', color: '#4ade80' }}>R$ {splitPayments.reduce((s, p) => s + p.amount, 0).toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '6px' }}>
+                <span style={{ color: '#f87171', fontWeight: 'bold' }}>Falta Lançar:</span>
+                <span style={{ fontWeight: 'bold', color: '#f87171' }}>R$ {Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)).toFixed(2).replace('.', ',')}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  className="p-3 bg-black/50 text-white rounded border border-gray-600 outline-none flex-1 font-bold uppercase text-sm"
+                  value={currentSplitMethod}
+                  onChange={e => setCurrentSplitMethod(e.target.value as PaymentMethod)}
+                >
+                  <option value="cash">Dinheiro</option>
+                  <option value="pix">PIX</option>
+                  <option value="debit">Débito</option>
+                  <option value="credit">Crédito</option>
+                </select>
+                <input
+                  type="text"
+                  className="p-3 w-1/3 text-right bg-black/50 text-white rounded border border-gray-600 outline-none font-bold text-sm"
+                  placeholder="0,00"
+                  value={currentSplitAmount}
+                  onChange={e => setCurrentSplitAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  onFocus={() => {
+                     const falta = Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0));
+                     if (!currentSplitAmount && falta > 0) {
+                        setCurrentSplitAmount(falta.toFixed(2).replace('.', ','));
+                     }
+                  }}
+                />
+              </div>
+              <button
+                className="btn w-full py-3 uppercase font-bold text-sm"
+                style={{ backgroundColor: '#3b82f6', color: 'white', border: 'none' }}
+                onClick={() => {
+                  const amt = parseCurrency(currentSplitAmount);
+                  if (amt > 0) {
+                    setSplitPayments([...splitPayments, { method: currentSplitMethod, amount: amt }]);
+                    setCurrentSplitAmount('');
+                  }
+                }}
+              >
+                + Adicionar Parcial
+              </button>
+            </div>
+
+            {splitPayments.length > 0 && (
+              <div className="flex flex-col gap-2 mt-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                {splitPayments.map((sp, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-gray-800/80 p-3 rounded border border-gray-600/50">
+                    <span className="uppercase font-bold text-sm text-gray-300">
+                      {sp.method === 'cash' ? 'Dinheiro' : sp.method === 'credit' ? 'Crédito' : sp.method === 'debit' ? 'Débito' : 'PIX'}
+                    </span>
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-green-400 font-bold text-sm">R$ {sp.amount.toFixed(2).replace('.', ',')}</span>
+                      <button onClick={() => setSplitPayments(splitPayments.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                   if (splitPayments.length === 0) setPaymentMethod('cash'); // fallback se cancelar sem nada
+                   setShowSplitModal(false);
+                }}
+                style={{ flex: 1, padding: '12px', fontSize: '1rem', fontWeight: 'bold', borderRadius: '6px', backgroundColor: '#64748b', color: '#ffffff', border: 'none', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)) > 0}
+                onClick={() => setShowSplitModal(false)}
+                style={{ flex: 2, padding: '12px', fontSize: '1rem', fontWeight: 'bold', borderRadius: '6px', backgroundColor: Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)) > 0 ? '#4b5563' : '#22c55e', color: '#ffffff', border: 'none', cursor: Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)) > 0 ? 'not-allowed' : 'pointer' }}
+              >
+                {Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)) > 0 ? 'Falta Valor' : 'Concluir'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

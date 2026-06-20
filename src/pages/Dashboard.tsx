@@ -130,7 +130,7 @@ export const Dashboard = () => {
                     }
                   </td>
                   <td className="py-3 text-sm">{t.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}</td>
-                  <td className="py-3 text-sm uppercase">{t.paymentMethod}</td>
+                  <td className="py-3 text-sm uppercase">{t.paymentMethod === 'cash' ? 'Dinheiro' : t.paymentMethod === 'credit' ? 'Crédito' : t.paymentMethod === 'debit' ? 'Débito' : t.paymentMethod === 'pix' ? 'PIX' : 'Múltiplo'}</td>
                   <td className={`py-3 text-sm font-bold text-right ${t.type === 'sale' ? 'text-success' : 'text-danger'}`}>
                     {t.type === 'sale' ? '+' : '-'} R$ {t.total.toFixed(2)}
                   </td>

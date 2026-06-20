@@ -9,6 +9,7 @@ import autoTable from 'jspdf-autotable';
 
 export const Reports = () => {
   const [viewProfile, setViewProfile] = React.useState<Profile | 'todos'>('todos');
+  const [activeTab, setActiveTab] = useState<'finance' | 'losses'>('finance');
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -45,6 +46,17 @@ export const Reports = () => {
     [start, end, viewProfile]
   );
 
+  const losses = useLiveQuery(
+    () => {
+      let query = db.losses.where('date').between(start, end);
+      if (viewProfile !== 'todos') {
+        return query.filter(l => l.operator === viewProfile).toArray();
+      }
+      return query.toArray();
+    },
+    [start, end, viewProfile]
+  ) || [];
+
   // Always receives a specific profile (never 'todos') and detail level
   const printThermalReport = async (profileToPrint: Profile, isDetailed: boolean) => {
     // Filter transactions for this specific profile
@@ -67,10 +79,30 @@ export const Reports = () => {
     let totalDiscounts = 0;
     let totalMachineFees = 0;
 
+    let totalDinheiro = 0;
+    let totalPix = 0;
+    let totalDebito = 0;
+    let totalCredito = 0;
+
     sales.forEach(t => {
       totalSales += t.total + (t.discount || 0);
       totalDiscounts += t.discount || 0;
       totalMachineFees += t.machineFee || 0;
+
+      if (t.paymentMethod === 'split' && t.splitPayments) {
+        t.splitPayments.forEach(sp => {
+          if (sp.method === 'cash') totalDinheiro += sp.amount;
+          else if (sp.method === 'pix') totalPix += sp.amount;
+          else if (sp.method === 'debit') totalDebito += sp.amount;
+          else if (sp.method === 'credit') totalCredito += sp.amount;
+        });
+      } else {
+        if (t.paymentMethod === 'cash') totalDinheiro += t.total;
+        else if (t.paymentMethod === 'pix') totalPix += t.total;
+        else if (t.paymentMethod === 'debit') totalDebito += t.total;
+        else if (t.paymentMethod === 'credit') totalCredito += t.total;
+      }
+
       t.items.forEach(item => {
         const svc = item.service;
         if (svc in serviceTotals) {
@@ -150,6 +182,16 @@ export const Reports = () => {
           </tr>
         </table>
 
+        <div class="divider"></div>
+        <div class="bold text-center">MEIOS DE PAGAMENTO</div>
+        <div class="mini-divider"></div>
+        <table>
+          <tr><td>Dinheiro:</td><td class="text-right font-mono">R$ ${totalDinheiro.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>PIX:</td><td class="text-right font-mono">R$ ${totalPix.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>Débito:</td><td class="text-right font-mono">R$ ${totalDebito.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>Crédito:</td><td class="text-right font-mono">R$ ${totalCredito.toFixed(2).replace('.', ',')}</td></tr>
+        </table>
+
         ${isDetailed ? `
         <div class="divider"></div>
         <div class="bold text-center">DETALHE DAS TRANSAÇÕES (${txForProfile.length})</div>
@@ -179,7 +221,7 @@ export const Reports = () => {
               <div class="bold">${idx + 1}. ${typeStr} (${timeStr})</div>
               <div style="color: #444; font-size: 10px; word-break: break-all;">Itens: ${itemsStr}</div>
               <div style="display: flex; justify-content: space-between; font-size: 9px; margin-top: 2px;">
-                <span>Pg: ${t.paymentMethod.toUpperCase()}</span>
+                <span>Pg: ${t.paymentMethod === 'cash' ? 'DIN' : t.paymentMethod === 'credit' ? 'CRÉD' : t.paymentMethod === 'debit' ? 'DÉB' : t.paymentMethod === 'pix' ? 'PIX' : 'MÚLT'}</span>
                 <span>Taxa: R$ ${rowFee.toFixed(2).replace('.', ',')}</span>
                 <span>Custo: R$ ${rowCost.toFixed(2).replace('.', ',')}</span>
               </div>
@@ -236,10 +278,30 @@ export const Reports = () => {
     let totalDiscounts = 0;
     let totalMachineFees = 0;
 
+    let totalDinheiro = 0;
+    let totalPix = 0;
+    let totalDebito = 0;
+    let totalCredito = 0;
+
     sales.forEach(t => {
       totalSales += t.total + (t.discount || 0);
       totalDiscounts += t.discount || 0;
       totalMachineFees += t.machineFee || 0;
+
+      if (t.paymentMethod === 'split' && t.splitPayments) {
+        t.splitPayments.forEach(sp => {
+          if (sp.method === 'cash') totalDinheiro += sp.amount;
+          else if (sp.method === 'pix') totalPix += sp.amount;
+          else if (sp.method === 'debit') totalDebito += sp.amount;
+          else if (sp.method === 'credit') totalCredito += sp.amount;
+        });
+      } else {
+        if (t.paymentMethod === 'cash') totalDinheiro += t.total;
+        else if (t.paymentMethod === 'pix') totalPix += t.total;
+        else if (t.paymentMethod === 'debit') totalDebito += t.total;
+        else if (t.paymentMethod === 'credit') totalCredito += t.total;
+      }
+
       t.items.forEach(item => {
         const svc = item.service;
         if (svc in serviceTotals) {
@@ -273,6 +335,11 @@ export const Reports = () => {
       ['Faturamento Liquido', `R$ ${netTotal.toFixed(2).replace('.', ',')}`],
       ['Custo de Insumos', `- R$ ${totalCosts.toFixed(2).replace('.', ',')}`],
       ['Lucro Real', `R$ ${realProfit.toFixed(2).replace('.', ',')}`],
+      ['---', '---'],
+      ['Vendas em Dinheiro', `R$ ${totalDinheiro.toFixed(2).replace('.', ',')}`],
+      ['Vendas em PIX', `R$ ${totalPix.toFixed(2).replace('.', ',')}`],
+      ['Vendas em Debito', `R$ ${totalDebito.toFixed(2).replace('.', ',')}`],
+      ['Vendas em Credito', `R$ ${totalCredito.toFixed(2).replace('.', ',')}`],
     ];
 
     autoTable(doc, {
@@ -307,7 +374,7 @@ export const Reports = () => {
           format(t.date, 'dd/MM/yyyy HH:mm'),
           typeStr,
           t.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
-          t.paymentMethod.toUpperCase(),
+          t.paymentMethod === 'cash' ? 'DINHEIRO' : t.paymentMethod === 'credit' ? 'CRÉDITO' : t.paymentMethod === 'debit' ? 'DÉBITO' : t.paymentMethod === 'pix' ? 'PIX' : 'MÚLTIPLO',
           `R$ ${t.total.toFixed(2).replace('.', ',')}`,
           `R$ ${rowFee.toFixed(2).replace('.', ',')}`,
           `R$ ${rowCost.toFixed(2).replace('.', ',')}`,
@@ -342,10 +409,30 @@ export const Reports = () => {
   let totalDiscounts = 0;
   let totalMachineFees = 0;
   
+  let totalCash = 0;
+  let totalPix = 0;
+  let totalDebit = 0;
+  let totalCredit = 0;
+
   sales.forEach(t => {
     totalGrossSales += t.total + (t.discount || 0);
     totalDiscounts += t.discount || 0;
     totalMachineFees += t.machineFee || 0;
+
+    if (t.paymentMethod === 'split' && t.splitPayments) {
+      t.splitPayments.forEach(sp => {
+        if (sp.method === 'cash') totalCash += sp.amount;
+        else if (sp.method === 'pix') totalPix += sp.amount;
+        else if (sp.method === 'debit') totalDebit += sp.amount;
+        else if (sp.method === 'credit') totalCredit += sp.amount;
+      });
+    } else {
+      if (t.paymentMethod === 'cash') totalCash += t.total;
+      else if (t.paymentMethod === 'pix') totalPix += t.total;
+      else if (t.paymentMethod === 'debit') totalDebit += t.total;
+      else if (t.paymentMethod === 'credit') totalCredit += t.total;
+    }
+
     t.items.forEach(item => {
       const svc = item.service;
       if (svc in serviceTotals) {
@@ -369,7 +456,31 @@ export const Reports = () => {
       <div className="page-header flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Relatórios</h1>
-          <p className="text-muted">Acompanhe seu faturamento, custos e lucros reais</p>
+          <p className="text-muted">Acompanhe seu faturamento, custos e perdas</p>
+          <div className="flex gap-2 mt-4">
+            <button 
+              style={{
+                padding: '8px 16px', fontWeight: 'bold', textTransform: 'uppercase', borderRadius: '12px', transition: 'background-color 0.2s',
+                backgroundColor: activeTab === 'finance' ? '#3b82f6' : 'var(--bg-surface)',
+                color: activeTab === 'finance' ? '#ffffff' : 'var(--text-muted)',
+                border: 'none', cursor: 'pointer'
+              }}
+              onClick={() => setActiveTab('finance')}
+            >
+              Financeiro
+            </button>
+            <button 
+              style={{
+                padding: '8px 16px', fontWeight: 'bold', textTransform: 'uppercase', borderRadius: '12px', transition: 'background-color 0.2s',
+                backgroundColor: activeTab === 'losses' ? '#dc2626' : 'var(--bg-surface)',
+                color: activeTab === 'losses' ? '#ffffff' : 'var(--text-muted)',
+                border: 'none', cursor: 'pointer'
+              }}
+              onClick={() => setActiveTab('losses')}
+            >
+              Perdas e Trocas
+            </button>
+          </div>
         </div>
         <div className="flex gap-4 items-center">
           <div className="flex items-center gap-2">
@@ -422,6 +533,8 @@ export const Reports = () => {
         </div>
       </div>
 
+      {activeTab === 'finance' && (
+        <>
       {/* Row of Categories Totals */}
       <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
         {serviceTotals.key > 0 && (
@@ -472,34 +585,54 @@ export const Reports = () => {
       </div>
 
       {/* Row of Financial Totals */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-        <div className="glass-panel p-4 border-l-4 border-primary">
-          <p className="text-xs text-muted font-bold uppercase">Vendas Brutas</p>
-          <p className="text-xl font-extrabold">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 mb-4">
+        <div className="glass-panel p-3 border-l-4 border-primary">
+          <p className="text-[10px] text-muted font-bold uppercase">Vendas Brutas</p>
+          <p className="text-lg font-black whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</p>
         </div>
-        <div className="glass-panel p-4 border-l-4 border-orange-500">
-          <p className="text-xs text-muted font-bold uppercase">Descontos</p>
-          <p className="text-xl font-extrabold text-orange-500">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</p>
+        <div className="glass-panel p-3 border-l-4 border-orange-500">
+          <p className="text-[10px] text-muted font-bold uppercase">Descontos</p>
+          <p className="text-lg font-black text-orange-500 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</p>
         </div>
-        <div className="glass-panel p-4 border-l-4 border-red-500">
-          <p className="text-xs text-muted font-bold uppercase">Devoluções (-)</p>
-          <p className="text-xl font-extrabold text-red-500">R$ {totalReturns.toFixed(2).replace('.', ',')}</p>
+        <div className="glass-panel p-3 border-l-4 border-red-500">
+          <p className="text-[10px] text-muted font-bold uppercase">Devoluções (-)</p>
+          <p className="text-lg font-black text-red-500 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalReturns.toFixed(2).replace('.', ',')}</p>
         </div>
-        <div className="glass-panel p-4 border-l-4 border-amber-600">
-          <p className="text-xs text-muted font-bold uppercase">Despesas (-)</p>
-          <p className="text-xl font-extrabold text-amber-500">R$ {totalExpenses.toFixed(2).replace('.', ',')}</p>
+        <div className="glass-panel p-3 border-l-4 border-amber-600">
+          <p className="text-[10px] text-muted font-bold uppercase">Despesas (-)</p>
+          <p className="text-lg font-black text-amber-500 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalExpenses.toFixed(2).replace('.', ',')}</p>
         </div>
-        <div className="glass-panel p-4 border-l-4 border-purple-500">
-          <p className="text-xs text-muted font-bold uppercase">Taxas Maquininha (-)</p>
-          <p className="text-xl font-extrabold text-purple-400">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</p>
+        <div className="glass-panel p-3 border-l-4 border-purple-500">
+          <p className="text-[10px] text-muted font-bold uppercase">Taxas Maquininha (-)</p>
+          <p className="text-lg font-black text-purple-400 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</p>
         </div>
-        <div className="glass-panel p-4 border-l-4 border-danger">
-          <p className="text-xs text-muted font-bold uppercase">Custo Produtos</p>
-          <p className="text-xl font-extrabold text-danger">R$ {totalCosts.toFixed(2).replace('.', ',')}</p>
+        <div className="glass-panel p-3 border-l-4 border-danger">
+          <p className="text-[10px] text-muted font-bold uppercase">Custo Produtos</p>
+          <p className="text-lg font-black text-danger whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalCosts.toFixed(2).replace('.', ',')}</p>
         </div>
-        <div className="glass-panel p-4 bg-success/15 border border-success/30 border-l-4 border-success">
-          <p className="text-xs text-success font-black uppercase">Lucro Real</p>
-          <p className="text-2xl font-black text-success">R$ {realProfit.toFixed(2).replace('.', ',')}</p>
+        <div className="glass-panel p-3 bg-success/15 border border-success/30 border-l-4 border-success">
+          <p className="text-[10px] text-success font-black uppercase">Lucro Real</p>
+          <p className="text-xl font-black text-success whitespace-nowrap overflow-hidden text-ellipsis">R$ {realProfit.toFixed(2).replace('.', ',')}</p>
+        </div>
+      </div>
+
+      {/* Row of Payment Methods */}
+      <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
+        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-emerald-500">
+          <p className="text-[10px] text-muted font-bold uppercase">Dinheiro</p>
+          <p className="text-[15px] font-black text-emerald-500 whitespace-nowrap">R$ {totalCash.toFixed(2).replace('.', ',')}</p>
+        </div>
+        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-teal-400">
+          <p className="text-[10px] text-muted font-bold uppercase">Pix</p>
+          <p className="text-[15px] font-black text-teal-400 whitespace-nowrap">R$ {totalPix.toFixed(2).replace('.', ',')}</p>
+        </div>
+        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-sky-500">
+          <p className="text-[10px] text-muted font-bold uppercase">Débito</p>
+          <p className="text-[15px] font-black text-sky-500 whitespace-nowrap">R$ {totalDebit.toFixed(2).replace('.', ',')}</p>
+        </div>
+        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-indigo-400">
+          <p className="text-[10px] text-muted font-bold uppercase">Crédito</p>
+          <p className="text-[15px] font-black text-indigo-400 whitespace-nowrap">R$ {totalCredit.toFixed(2).replace('.', ',')}</p>
         </div>
       </div>
 
@@ -565,7 +698,7 @@ export const Reports = () => {
                     <td className="py-3 px-4 text-xs font-medium max-w-[220px] truncate" title={t.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}>
                       {t.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}
                     </td>
-                    <td className="py-3 px-4 text-xs font-bold uppercase text-muted whitespace-nowrap">{t.paymentMethod}</td>
+                    <td className="py-3 px-4 text-xs font-bold uppercase text-muted whitespace-nowrap">{t.paymentMethod === 'cash' ? 'Dinheiro' : t.paymentMethod === 'credit' ? 'Crédito' : t.paymentMethod === 'debit' ? 'Débito' : t.paymentMethod === 'pix' ? 'PIX' : 'Múltiplo'}</td>
                     <td className="py-3 px-4 text-xs font-mono text-right text-muted">R$ {rowGross.toFixed(2).replace('.', ',')}</td>
                     <td className="py-3 px-4 text-xs font-mono text-right text-orange-500">{rowDiscount > 0 ? `- R$ ${rowDiscount.toFixed(2).replace('.', ',')}` : '-'}</td>
                     <td className={`py-3 px-4 text-xs font-mono text-right font-bold ${t.type === 'sale' ? 'text-success' : 'text-danger'}`}>
@@ -588,6 +721,57 @@ export const Reports = () => {
           </table>
         </div>
       </div>
+      </>
+      )}
+
+      {activeTab === 'losses' && (
+        <div className="glass-panel flex-1 flex flex-col min-h-0 animate-fade-in">
+          <div className="p-4 border-b border-[var(--border)]">
+            <h2 className="text-lg font-bold">Registro de Perdas e Trocas ({losses.length})</h2>
+          </div>
+          <div className="flex-1 overflow-auto">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
+              <thead className="bg-[var(--bg-surface)] sticky top-0">
+                <tr className="border-b border-[var(--border)] text-muted text-[11px] uppercase tracking-wider">
+                  <th className="py-3 px-4 font-bold text-left">Data/Hora</th>
+                  <th className="py-3 px-4 font-bold text-left">Operador</th>
+                  <th className="py-3 px-4 font-bold text-left">Motivo</th>
+                  <th className="py-3 px-4 font-bold text-left">Produto</th>
+                  <th className="py-3 px-4 font-bold text-center">Quantidade</th>
+                  <th className="py-3 px-4 font-bold text-left">Observações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {losses.sort((a, b) => b.date.getTime() - a.date.getTime()).map((l, i) => (
+                  <tr key={l.id || i} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-surface-hover)]">
+                    <td className="py-3 px-4 text-xs font-mono whitespace-nowrap">{format(l.date, 'dd/MM/yyyy HH:mm')}</td>
+                    <td className="py-3 px-4 text-xs font-bold uppercase text-yellow-500">{l.operator}</td>
+                    <td className="py-3 px-4">
+                      {l.type === 'error' ? (
+                        <span className="bg-red-500/20 text-red-500 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Erro de Corte</span>
+                      ) : (
+                        <span className="bg-orange-500/20 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Troca</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-sm font-medium">
+                      <span className="text-gray-400 mr-2 text-xs">#{l.productCode}</span>
+                      {l.productName}
+                    </td>
+                    <td className="py-3 px-4 text-sm font-bold text-center text-white">{l.quantity}</td>
+                    <td className="py-3 px-4 text-xs text-muted max-w-[200px] truncate" title={l.notes}>{l.notes || '-'}</td>
+                  </tr>
+                ))}
+                {losses.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-muted">Nenhum registro de perda neste período.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Operator selection modal */}
       {printModalMode !== null && (
         <div
