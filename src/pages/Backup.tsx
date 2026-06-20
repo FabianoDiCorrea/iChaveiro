@@ -226,6 +226,9 @@ export const Backup = () => {
       
       await importInto(db, blob, {
         clearTablesBeforeImport: true,
+        acceptVersionDiff: true,
+        acceptMissingTables: true,
+        acceptNameDiff: true,
         progressCallback: ({ totalRows, completedRows }) => {
           if (totalRows > 0) {
             const p = Math.round((completedRows / totalRows) * 100);
