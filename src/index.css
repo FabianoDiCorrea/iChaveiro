@@ -258,3 +258,9 @@ input, select, textarea {
   background-color: rgba(59, 130, 246, 0.15);
   box-shadow: inset 4px 0 0 0 var(--primary);
 }
+
+/* Custom styling for native date inputs */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(200deg) brightness(98%) contrast(98%);
+}

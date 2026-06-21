@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud, Download } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud, Download, Briefcase } from 'lucide-react';
 import packageJson from '../../package.json';
 
 export const Sidebar = () => {
@@ -70,6 +70,10 @@ export const Sidebar = () => {
         <NavLink to="/clientes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Users size={20} />
           <span>Clientes</span>
+        </NavLink>
+        <NavLink to="/funcionarios" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <Briefcase size={20} />
+          <span>Funcionários</span>
         </NavLink>
         <NavLink to="/relatorios" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <FileText size={20} />

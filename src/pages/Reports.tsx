@@ -117,10 +117,22 @@ export const Reports = () => {
       });
     });
 
+    const pureExpenses = expenses.filter(t => !t.items[0]?.name.startsWith('Pagamento de Diária:'));
+    const wageExpenses = expenses.filter(t => t.items[0]?.name.startsWith('Pagamento de Diária:'));
+    
+    const totalPureExpenses = pureExpenses.reduce((sum, t) => sum + t.total, 0);
+    const wageTotals: Record<string, number> = {};
+    let totalWageExpenses = 0;
+    
+    wageExpenses.forEach(t => {
+      const name = t.items[0].name.replace('Pagamento de Diária: ', '');
+      wageTotals[name] = (wageTotals[name] || 0) + t.total;
+      totalWageExpenses += t.total;
+    });
+
     const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
-    const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
     const netTotal = totalSales - totalReturns - totalDiscounts;
-    const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
+    const realProfit = netTotal - totalCosts - totalPureExpenses - totalWageExpenses - totalMachineFees;
 
     const dateStr = new Date().toLocaleString('pt-BR');
     const periodStr = `${format(start, 'dd/MM/yyyy')} a ${format(end, 'dd/MM/yyyy')}`;
@@ -174,7 +186,8 @@ export const Reports = () => {
           <tr><td>Vendas Brutas:</td><td class="text-right font-mono">R$ ${totalSales.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Descontos:</td><td class="text-right font-mono">- R$ ${totalDiscounts.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Devoluções (-):</td><td class="text-right font-mono">- R$ ${totalReturns.toFixed(2).replace('.', ',')}</td></tr>
-          <tr><td>Despesas (-):</td><td class="text-right font-mono">- R$ ${totalExpenses.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>Despesas (Insumos):</td><td class="text-right font-mono">- R$ ${totalPureExpenses.toFixed(2).replace('.', ',')}</td></tr>
+          ${Object.entries(wageTotals).map(([name, amount]) => `<tr><td>Diária (${name}):</td><td class="text-right font-mono">- R$ ${amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
           <tr><td>Taxas Maquininha (-):</td><td class="text-right font-mono">- R$ ${totalMachineFees.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Custo de Produtos:</td><td class="text-right font-mono">- R$ ${totalCosts.toFixed(2).replace('.', ',')}</td></tr>
           <tr class="bold" style="font-size: 12px; border-top: 1px dashed black;">
@@ -447,10 +460,24 @@ export const Reports = () => {
     });
   });
 
+  let totalWages = 0;
+  let pureExpenses = 0;
+
+  expenses.forEach(t => {
+    t.items.forEach(item => {
+      if (item.name.startsWith('Diária:')) {
+        totalWages += item.total;
+      } else {
+        pureExpenses += item.total;
+      }
+    });
+  });
+
   const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
-  const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
+  const totalExpenses = pureExpenses + totalWages;
   const netTotal = totalGrossSales - totalReturns - totalDiscounts;
   const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
+  const totalPaymentMethods = totalCash + totalPix + totalDebit + totalCredit;
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
@@ -506,7 +533,7 @@ export const Reports = () => {
       </div>
 
       <div className="glass-panel p-6 mb-6">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Calendar size={20}/> Filtro de Período</h2>
+        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Calendar size={20} className="text-primary" /> Filtro de Período</h2>
         <div className="flex gap-4 items-end">
           <div>
             <label className="label">Período</label>
@@ -536,105 +563,99 @@ export const Reports = () => {
 
       {activeTab === 'finance' && (
         <>
-      {/* Row of Categories Totals */}
-      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
-        {serviceTotals.key > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Chaves <span className="font-normal normal-case">({serviceQtys.key} un)</span></p>
-            <p className="text-lg font-black text-orange-500">R$ {serviceTotals.key.toFixed(2).replace('.', ',')}</p>
+      {/* Dashboard Summary - Aligned to Left without stretching */}
+      <div className="flex mb-6" style={{ flexWrap: 'wrap', gap: '24px' }}>
+        
+        {/* Column 1: Items List */}
+        <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
+          <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Serviços e Itens</h3>
+          <div className="flex flex-col gap-2 overflow-y-auto" style={{ flex: 1, maxHeight: '250px', paddingRight: '4px' }}>
+            {[
+              { name: 'Chaves', qty: serviceQtys.key, val: serviceTotals.key },
+              { name: 'Molinhas', qty: serviceQtys.spring, val: serviceTotals.spring },
+              { name: 'Parafusos', qty: serviceQtys.screw, val: serviceTotals.screw },
+              { name: 'Alicates', qty: serviceQtys.plier, val: serviceTotals.plier },
+              { name: 'Tesouras', qty: serviceQtys.scissor, val: serviceTotals.scissor },
+              { name: 'Facas', qty: serviceQtys.knife, val: serviceTotals.knife },
+              { name: 'Outros', qty: serviceQtys.other, val: serviceTotals.other },
+            ].filter(i => i.qty > 0).map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center rounded border border-[var(--border)]" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px' }}>
+                <span className="text-sm font-bold">{item.name} <span className="text-muted text-xs font-normal">({item.qty} un)</span></span>
+                <span className="font-bold text-primary">R$ {item.val.toFixed(2).replace('.', ',')}</span>
+              </div>
+            ))}
+            {Object.values(serviceQtys).every(v => v === 0) && (
+              <div className="text-center text-muted text-sm py-4">Nenhum item no período.</div>
+            )}
           </div>
-        )}
-        {serviceTotals.spring > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Molinhas <span className="font-normal normal-case">({serviceQtys.spring} un)</span></p>
-            <p className="text-lg font-black text-yellow-500">R$ {serviceTotals.spring.toFixed(2).replace('.', ',')}</p>
-          </div>
-        )}
-        {serviceTotals.screw > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Parafusos <span className="font-normal normal-case">({serviceQtys.screw} un)</span></p>
-            <p className="text-lg font-black text-amber-500">R$ {serviceTotals.screw.toFixed(2).replace('.', ',')}</p>
-          </div>
-        )}
-        {serviceTotals.plier > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Alicates <span className="font-normal normal-case">({serviceQtys.plier})</span></p>
-            <p className="text-lg font-black text-blue-500">R$ {serviceTotals.plier.toFixed(2).replace('.', ',')}</p>
-          </div>
-        )}
-        {serviceTotals.scissor > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Tesouras <span className="font-normal normal-case">({serviceQtys.scissor})</span></p>
-            <p className="text-lg font-black text-purple-500">R$ {serviceTotals.scissor.toFixed(2).replace('.', ',')}</p>
-          </div>
-        )}
-        {serviceTotals.knife > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Facas <span className="font-normal normal-case">({serviceQtys.knife})</span></p>
-            <p className="text-lg font-black text-red-500">R$ {serviceTotals.knife.toFixed(2).replace('.', ',')}</p>
-          </div>
-        )}
-        {serviceTotals.other > 0 && (
-          <div className="glass-panel p-3 text-center">
-            <p className="text-[11px] text-muted mb-1 font-bold uppercase">Outros <span className="font-normal normal-case">({serviceQtys.other} un)</span></p>
-            <p className="text-lg font-black text-gray-400">R$ {serviceTotals.other.toFixed(2).replace('.', ',')}</p>
-          </div>
-        )}
-        {Object.values(serviceTotals).every(v => v === 0) && (
-          <div className="col-span-7 text-center text-muted py-4">Nenhuma venda no período.</div>
-        )}
-      </div>
+        </div>
 
-      {/* Row of Financial Totals */}
-      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 mb-4">
-        <div className="glass-panel p-3 border-l-4 border-primary">
-          <p className="text-[10px] text-muted font-bold uppercase">Vendas Brutas</p>
-          <p className="text-lg font-black whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</p>
+        {/* Column 2: Payment Methods */}
+        <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
+          <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Pagamentos</h3>
+          <div className="flex flex-col" style={{ gap: '12px' }}>
+            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #16a34a' }}>
+              <span className="text-sm font-bold uppercase text-muted">Dinheiro</span>
+              <span className="font-black text-lg" style={{ color: '#16a34a' }}>R$ {totalCash.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #14b8a6' }}>
+              <span className="text-sm font-bold uppercase text-muted">Pix</span>
+              <span className="font-black text-lg" style={{ color: '#14b8a6' }}>R$ {totalPix.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #2563eb' }}>
+              <span className="text-sm font-bold uppercase text-muted">Débito</span>
+              <span className="font-black text-lg" style={{ color: '#2563eb' }}>R$ {totalDebit.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #9333ea' }}>
+              <span className="text-sm font-bold uppercase text-muted">Crédito</span>
+              <span className="font-black text-lg" style={{ color: '#9333ea' }}>R$ {totalCredit.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center rounded" style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+              <span className="font-bold uppercase text-sm text-muted">Total Recebido</span>
+              <span className="font-black text-lg">R$ {totalPaymentMethods.toFixed(2).replace('.', ',')}</span>
+            </div>
+          </div>
         </div>
-        <div className="glass-panel p-3 border-l-4 border-orange-500">
-          <p className="text-[10px] text-muted font-bold uppercase">Descontos</p>
-          <p className="text-lg font-black text-orange-500 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-3 border-l-4 border-red-500">
-          <p className="text-[10px] text-muted font-bold uppercase">Devoluções (-)</p>
-          <p className="text-lg font-black text-red-500 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalReturns.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-3 border-l-4 border-amber-600">
-          <p className="text-[10px] text-muted font-bold uppercase">Despesas (-)</p>
-          <p className="text-lg font-black text-amber-500 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalExpenses.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-3 border-l-4 border-purple-500">
-          <p className="text-[10px] text-muted font-bold uppercase">Taxas Maquininha (-)</p>
-          <p className="text-lg font-black text-purple-400 whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-3 border-l-4 border-danger">
-          <p className="text-[10px] text-muted font-bold uppercase">Custo Produtos</p>
-          <p className="text-lg font-black text-danger whitespace-nowrap overflow-hidden text-ellipsis">R$ {totalCosts.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-3 bg-success/15 border border-success/30 border-l-4 border-success">
-          <p className="text-[10px] text-success font-black uppercase">Lucro Real</p>
-          <p className="text-xl font-black text-success whitespace-nowrap overflow-hidden text-ellipsis">R$ {realProfit.toFixed(2).replace('.', ',')}</p>
-        </div>
-      </div>
 
-      {/* Row of Payment Methods */}
-      <div className="flex gap-3 mb-6 overflow-x-auto pb-2">
-        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-emerald-500">
-          <p className="text-[10px] text-muted font-bold uppercase">Dinheiro</p>
-          <p className="text-[15px] font-black text-emerald-500 whitespace-nowrap">R$ {totalCash.toFixed(2).replace('.', ',')}</p>
+        {/* Column 3: Financial Breakdown */}
+        <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
+          <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Demonstrativo</h3>
+          <div className="flex flex-col" style={{ gap: '10px' }}>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted font-medium">Vendas Brutas</span>
+              <span className="font-bold">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center" style={{ color: '#f97316' }}>
+              <span className="text-sm font-medium">Descontos (-)</span>
+              <span className="font-bold">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center" style={{ color: '#ef4444' }}>
+              <span className="text-sm font-medium">Devoluções (-)</span>
+              <span className="font-bold">R$ {totalReturns.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center" style={{ color: '#d97706' }}>
+              <span className="text-sm font-medium">Insumos/Outros (-)</span>
+              <span className="font-bold">R$ {pureExpenses.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center" style={{ color: '#f59e0b' }}>
+              <span className="text-sm font-medium">Pagamento Diárias (-)</span>
+              <span className="font-bold">R$ {totalWages.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center" style={{ color: '#c084fc' }}>
+              <span className="text-sm font-medium">Taxas Maquininha (-)</span>
+              <span className="font-bold">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center" style={{ color: 'var(--danger)' }}>
+              <span className="text-sm font-medium">Custo Produtos (-)</span>
+              <span className="font-bold">R$ {totalCosts.toFixed(2).replace('.', ',')}</span>
+            </div>
+            <div className="flex justify-between items-center rounded" style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border)', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '12px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <span className="font-black uppercase text-sm" style={{ color: 'var(--success)' }}>Lucro Real</span>
+              <span className="text-xl font-black" style={{ color: 'var(--success)' }}>R$ {realProfit.toFixed(2).replace('.', ',')}</span>
+            </div>
+          </div>
         </div>
-        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-teal-400">
-          <p className="text-[10px] text-muted font-bold uppercase">Pix</p>
-          <p className="text-[15px] font-black text-teal-400 whitespace-nowrap">R$ {totalPix.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-sky-500">
-          <p className="text-[10px] text-muted font-bold uppercase">Débito</p>
-          <p className="text-[15px] font-black text-sky-500 whitespace-nowrap">R$ {totalDebit.toFixed(2).replace('.', ',')}</p>
-        </div>
-        <div className="glass-panel p-2 px-4 flex-1 min-w-[120px] text-center border-b-2 border-indigo-400">
-          <p className="text-[10px] text-muted font-bold uppercase">Crédito</p>
-          <p className="text-[15px] font-black text-indigo-400 whitespace-nowrap">R$ {totalCredit.toFixed(2).replace('.', ',')}</p>
-        </div>
+
       </div>
 
       {/* Main List Table */}

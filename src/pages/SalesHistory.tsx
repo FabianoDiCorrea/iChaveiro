@@ -23,8 +23,8 @@ export const SalesHistory = () => {
       case 'year': return { start: startOfYear(now), end: endOfYear(now) };
       case 'custom': 
         return { 
-          start: customStart ? startOfDay(new Date(customStart)) : startOfDay(now), 
-          end: customEnd ? endOfDay(new Date(customEnd)) : endOfDay(now) 
+          start: customStart ? startOfDay(new Date(customStart + 'T00:00:00')) : startOfDay(now), 
+          end: customEnd ? endOfDay(new Date(customEnd + 'T23:59:59')) : endOfDay(now) 
         };
       default: return { start: startOfDay(now), end: endOfDay(now) };
     }
@@ -60,8 +60,27 @@ export const SalesHistory = () => {
 
   const handleDelete = async (id?: number) => {
     if (!id) return;
-    if (window.confirm('Tem certeza que deseja EXCLUIR permanentemente esta transação? Isso afetará os relatórios e o caixa não fechará corretamente se já tiver sido contabilizado.')) {
-      await db.transactions.delete(id);
+    if (window.confirm('Tem certeza que deseja EXCLUIR permanentemente esta transação? Isso afetará os relatórios e o caixa não fechará corretamente se já tiver sido contabilizado. (O estoque será restaurado)')) {
+      try {
+        await db.transaction('rw', db.transactions, db.products, async () => {
+          const t = await db.transactions.get(id);
+          if (t && t.type === 'sale') {
+            for (const item of t.items) {
+              if (item.productId) {
+                const product = await db.products.get(item.productId);
+                if (product && product.hasStock) {
+                  await db.products.update(product.id!, { stock: product.stock + item.quantity });
+                }
+              }
+            }
+          }
+          await db.transactions.delete(id);
+        });
+        alert('Transação excluída e estoque restaurado (se aplicável).');
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao excluir transação.');
+      }
     }
   };
 
@@ -320,7 +339,7 @@ export const SalesHistory = () => {
                       </span>
                     </td>
                     <td className="text-sm" style={{ padding: '12px 8px' }}>
-                      <div className="truncate" style={{ maxWidth: '280px' }} title={t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
+                      <div className="truncate" style={{ maxWidth: '200px' }} title={t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
                         {t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                       </div>
                       {t.clientName && <div className="text-xs text-muted mt-0.5">Cliente: {t.clientName}</div>}
@@ -332,7 +351,7 @@ export const SalesHistory = () => {
                        t.paymentMethod === 'pix' ? 'Pix' : 
                        t.paymentMethod === 'split' ? 'Múltiplo' : t.paymentMethod}
                     </td>
-                    <td className={`text-right font-bold ${isSale ? 'text-success' : 'text-danger'}`} style={{ padding: '12px 8px' }}>
+                    <td className={`text-right font-bold whitespace-nowrap ${isSale ? 'text-success' : 'text-danger'}`} style={{ padding: '12px 8px' }}>
                       {isSale ? '+' : '-'} R$ {t.total.toFixed(2).replace('.', ',')}
                     </td>
                     <td className="text-center whitespace-nowrap" style={{ padding: '12px 8px' }}>

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Product, type Profile, type ServiceType } from '../db/db';
-import { Search, Plus, Edit2, Trash2, Package, TrendingUp } from 'lucide-react';
-import { subDays } from 'date-fns';
+import { Search, Plus, Edit2, Trash2, Package, TrendingUp, List, X } from 'lucide-react';
+import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 
 export const Inventory = () => {
   // Helper: check if this product instance has stock tracking enabled
@@ -11,6 +12,12 @@ export const Inventory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [historyPeriod, setHistoryPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
+  const [historyProfile, setHistoryProfile] = useState<Profile | 'todos'>('todos');
+  const [historyCustomStart, setHistoryCustomStart] = useState('');
+  const [historyCustomEnd, setHistoryCustomEnd] = useState('');
 
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
   const [stockEntry, setStockEntry] = useState({ qty: '', cost: '' });
@@ -497,6 +504,16 @@ export const Inventory = () => {
                     <td className="py-2 px-2 text-right font-bold text-success text-sm">R$ {product.price.toFixed(2).replace('.', ',')}</td>
                     <td className="py-2 px-2">
                       <div className="flex items-center justify-end flex-nowrap">
+                        <button 
+                          className="p-2 rounded transition-colors cursor-pointer" 
+                          style={{ margin: '0 4px', color: '#8b5cf6' }}
+                          onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.2)'}
+                          onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          title="Ver Histórico de Vendas" 
+                          onClick={() => setHistoryProduct(product)}
+                        >
+                          <List size={24} />
+                        </button>
                         {hasInventoryByProduct(product) && (
                           <button 
                             className="p-2 rounded transition-colors cursor-pointer" 
@@ -544,7 +561,7 @@ export const Inventory = () => {
         </div>
       </div>
 
-      {isModalOpen && (
+      {isModalOpen && createPortal(
         <div 
           style={{ 
             position: 'fixed', 
@@ -731,10 +748,11 @@ export const Inventory = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isAddStockModalOpen && (
+      {isAddStockModalOpen && createPortal(
         <div 
           style={{ 
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
@@ -789,8 +807,133 @@ export const Inventory = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+      {historyProduct && (() => {
+        const now = new Date();
+        let startD = startOfDay(now);
+        let endD = endOfDay(now);
+
+        switch (historyPeriod) {
+          case 'today': startD = startOfDay(now); endD = endOfDay(now); break;
+          case 'week': startD = startOfDay(subDays(now, 7)); endD = endOfDay(now); break;
+          case 'month': startD = startOfMonth(now); endD = endOfMonth(now); break;
+          case 'year': startD = startOfYear(now); endD = endOfYear(now); break;
+          case 'custom': 
+            startD = historyCustomStart ? startOfDay(new Date(historyCustomStart + 'T00:00:00')) : startOfDay(now);
+            endD = historyCustomEnd ? endOfDay(new Date(historyCustomEnd + 'T23:59:59')) : endOfDay(now);
+            break;
+        }
+
+        const historyData = (allTransactions || [])
+          .filter(t => t.type === 'sale' && t.date >= startD && t.date <= endD)
+          .filter(t => historyProfile === 'todos' || t.profile === historyProfile)
+          .flatMap(t => {
+            const item = t.items.find(i => i.productId === historyProduct.id || (i.name === historyProduct.name && (!i.productId || !historyProduct.id)));
+            if (item) {
+              return [{ date: t.date, profile: t.profile, quantity: item.quantity, total: item.total, txId: t.id }];
+            }
+            return [];
+          })
+          .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        const totalQty = historyData.reduce((sum, item) => sum + item.quantity, 0);
+        const totalRevenue = historyData.reduce((sum, item) => sum + item.total, 0);
+
+        return createPortal(
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' }}>
+            <div className="glass-panel p-6 w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">Histórico do Item: <span className="text-primary">{historyProduct.name}</span></h2>
+                  <p className="text-sm text-muted">Acompanhe quem vendeu, quando, e as quantidades totais.</p>
+                </div>
+                <button onClick={() => setHistoryProduct(null)} className="p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"><X size={24} /></button>
+              </div>
+              
+              {/* Filters */}
+              <div className="flex flex-wrap gap-4 mb-6">
+                <div>
+                  <label className="label">Período</label>
+                  <select className="input min-w-[150px]" value={historyPeriod} onChange={e => setHistoryPeriod(e.target.value as any)}>
+                    <option value="today">Hoje</option>
+                    <option value="week">Semana (7 dias)</option>
+                    <option value="month">Este Mês</option>
+                    <option value="year">Este Ano</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                {historyPeriod === 'custom' && (
+                  <>
+                    <div>
+                      <label className="label">Início</label>
+                      <input type="date" className="input" value={historyCustomStart} onChange={e => setHistoryCustomStart(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Fim</label>
+                      <input type="date" className="input" value={historyCustomEnd} onChange={e => setHistoryCustomEnd(e.target.value)} />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="label">Operador</label>
+                  <select className="input min-w-[150px]" value={historyProfile} onChange={e => setHistoryProfile(e.target.value as any)}>
+                    <option value="todos">Todos (Somados)</option>
+                    <option value="chaveiro">Chaveiro</option>
+                    <option value="fabiano">Fabiano</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-black/20 p-4 rounded-xl border border-[var(--border)] flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-muted mb-1">Quantidade Total Vendida</div>
+                    <div className="text-2xl font-bold text-primary">{totalQty} un</div>
+                  </div>
+                  <Package size={32} className="text-primary/50" />
+                </div>
+                <div className="bg-black/20 p-4 rounded-xl border border-[var(--border)] flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-muted mb-1">Faturamento Gerado</div>
+                    <div className="text-2xl font-bold text-success">R$ {totalRevenue.toFixed(2).replace('.', ',')}</div>
+                  </div>
+                  <TrendingUp size={32} className="text-success/50" />
+                </div>
+              </div>
+              
+              {/* Table List */}
+              <div className="flex-1 overflow-y-auto border border-[var(--border)] rounded-lg">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-[var(--bg-surface)] sticky top-0">
+                    <tr className="text-muted text-sm border-b border-[var(--border)]">
+                      <th className="font-medium p-3">Data/Hora</th>
+                      <th className="font-medium p-3">Operador</th>
+                      <th className="font-medium p-3 text-center">Qtd</th>
+                      <th className="font-medium p-3 text-right">Valor Venda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyData.length > 0 ? historyData.map((item, idx) => (
+                      <tr key={idx} className="border-b border-[var(--border)] hover:bg-[var(--bg-surface-hover)]">
+                        <td className="p-3 text-sm">{item.date.toLocaleString('pt-BR')}</td>
+                        <td className="p-3 text-sm font-bold uppercase" style={{ color: item.profile === 'chaveiro' ? '#ef4444' : '#3b82f6' }}>{item.profile}</td>
+                        <td className="p-3 text-sm font-bold text-center">{item.quantity}x</td>
+                        <td className="p-3 text-sm text-right text-success">R$ {item.total.toFixed(2).replace('.', ',')}</td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={4} className="p-4 text-center text-muted">Nenhuma venda encontrada para este período.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 };

@@ -61,6 +61,14 @@ export interface Client {
   createdAt: Date;
 }
 
+export interface Employee {
+  id?: number;
+  name: string;
+  dailyWage: number;
+  active: boolean;
+  createdAt: Date;
+}
+
 export interface Product {
   id?: number;
   profile: Profile;
@@ -102,6 +110,7 @@ const db = new Dexie('iChaveiroDB') as Dexie & {
   cashSessions: EntityTable<CashSession, 'id'>;
   losses: EntityTable<Loss, 'id'>;
   pendingSales: EntityTable<PendingSale, 'id'>;
+  employees: EntityTable<Employee, 'id'>;
 };
 
 db.version(5).stores({
@@ -151,6 +160,16 @@ db.version(9).stores({
   cashSessions: '++id, profile, status, openedAt, closedAt',
   losses: '++id, date, productId, type, operator',
   pendingSales: '++id, profile, date, clientName'
+});
+
+db.version(10).stores({
+  transactions: '++id, profile, type, paymentMethod, date, clientId',
+  clients: '++id, name, phone, code',
+  products: '++id, profile, name, code, brand, serviceType, hasStock',
+  cashSessions: '++id, profile, status, openedAt, closedAt',
+  losses: '++id, date, productId, type, operator',
+  pendingSales: '++id, profile, date, clientName',
+  employees: '++id, name, active'
 });
 
 export { db };
