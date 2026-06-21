@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Transaction, type Profile, type PaymentMethod, type TransactionItem } from '../db/db';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
-import { Calendar, Printer, Undo2, Trash2, Search, Filter, Edit2, X, Plus } from 'lucide-react';
+import { Calendar, Printer, Undo2, Trash2, Search, Filter, Edit2, X, Plus, Receipt } from 'lucide-react';
 
 export const SalesHistory = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
@@ -12,6 +12,7 @@ export const SalesHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   const getDates = () => {
     const now = new Date();
@@ -215,8 +216,9 @@ export const SalesHistory = () => {
   };
 
   return (
-    <div className="flex flex-col h-full animate-fade-in">
-      <div className="page-header flex justify-between items-center">
+    <>
+      <div className="flex flex-col h-full animate-fade-in">
+        <div className="page-header flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Histórico de Transações</h1>
           <p className="text-muted">Consulte, imprima recibos, devolva ou exclua transações do sistema.</p>
@@ -279,15 +281,15 @@ export const SalesHistory = () => {
         </div>
         <div className="flex-1 overflow-y-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-[var(--bg-surface)] sticky top-0 z-10">
-              <tr className="border-b border-[var(--border)] text-muted text-sm">
-                <th className="py-3 px-4 font-medium">Data/Hora</th>
-                <th className="py-3 px-4 font-medium">Operador</th>
-                <th className="py-3 px-4 font-medium">Tipo</th>
-                <th className="py-3 px-4 font-medium">Descrição / Itens</th>
-                <th className="py-3 px-4 font-medium">Pgto</th>
-                <th className="py-3 px-4 font-medium text-right">Valor Total</th>
-                <th className="py-3 px-4 font-medium text-right">Ações</th>
+            <thead className="bg-[var(--bg-surface)]" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+              <tr className="text-muted text-sm" style={{ borderBottom: '1px solid var(--border)' }}>
+                <th className="font-medium" style={{ padding: '12px 8px', width: '120px' }}>Data/Hora</th>
+                <th className="font-medium" style={{ padding: '12px 8px', width: '90px' }}>Operador</th>
+                <th className="font-medium" style={{ padding: '12px 8px', width: '80px' }}>Tipo</th>
+                <th className="font-medium" style={{ padding: '12px 8px' }}>Descrição / Itens</th>
+                <th className="font-medium" style={{ padding: '12px 8px', width: '100px' }}>Pgto</th>
+                <th className="font-medium text-right" style={{ padding: '12px 8px', width: '110px' }}>Valor Total</th>
+                <th className="font-medium text-center" style={{ padding: '12px 8px', width: '180px' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -297,12 +299,18 @@ export const SalesHistory = () => {
                 const isReturn = t.type === 'return';
                 
                 return (
-                  <tr key={t.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-surface-hover)]">
-                    <td className="py-3 px-4 text-sm whitespace-nowrap">{format(t.date, 'dd/MM/yyyy HH:mm')}</td>
-                    <td className="py-3 px-4 text-sm font-bold uppercase" style={{ color: t.profile === 'chaveiro' ? '#ef4444' : '#3b82f6' }}>
+                  <tr 
+                    key={t.id} 
+                    className="table-row-hover" 
+                    style={{ borderBottom: '1px solid var(--border)' }}
+                    onClick={() => setSelectedTx(t)}
+                    title="Clique para ver detalhes desta transação"
+                  >
+                    <td className="text-sm whitespace-nowrap" style={{ padding: '12px 8px' }}>{format(t.date, 'dd/MM/yyyy HH:mm')}</td>
+                    <td className="text-sm font-bold uppercase" style={{ padding: '12px 8px', color: t.profile === 'chaveiro' ? '#ef4444' : '#3b82f6' }}>
                       {t.profile}
                     </td>
-                    <td className="py-3 px-4">
+                    <td style={{ padding: '12px 8px' }}>
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
                         isSale ? 'bg-success/20 text-success' : 
                         isExpense ? 'bg-warning/20 text-warning' : 
@@ -311,53 +319,63 @@ export const SalesHistory = () => {
                         {isSale ? 'Venda' : isExpense ? 'Despesa' : 'Devolução'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm">
-                      <div className="truncate max-w-[300px]" title={t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
+                    <td className="text-sm" style={{ padding: '12px 8px' }}>
+                      <div className="truncate" style={{ maxWidth: '280px' }} title={t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
                         {t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                       </div>
                       {t.clientName && <div className="text-xs text-muted mt-0.5">Cliente: {t.clientName}</div>}
                     </td>
-                    <td className="py-3 px-4 text-sm font-bold uppercase text-muted">
+                    <td className="text-sm font-bold uppercase text-muted" style={{ padding: '12px 8px' }}>
                       {t.paymentMethod === 'cash' ? 'Dinheiro' : 
                        t.paymentMethod === 'credit' ? 'Crédito' : 
                        t.paymentMethod === 'debit' ? 'Débito' : 
                        t.paymentMethod === 'pix' ? 'Pix' : 
                        t.paymentMethod === 'split' ? 'Múltiplo' : t.paymentMethod}
                     </td>
-                    <td className={`py-3 px-4 text-right font-bold ${isSale ? 'text-success' : 'text-danger'}`}>
+                    <td className={`text-right font-bold ${isSale ? 'text-success' : 'text-danger'}`} style={{ padding: '12px 8px' }}>
                       {isSale ? '+' : '-'} R$ {t.total.toFixed(2).replace('.', ',')}
                     </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <button 
-                        className="p-1.5 text-primary hover:bg-primary/20 rounded transition-colors cursor-pointer mr-1" 
-                        title="Imprimir Cupom" 
-                        onClick={() => printReceipt(t)}
-                      >
-                        <Printer size={18} />
-                      </button>
-                      <button 
-                        className="p-1.5 text-blue-400 hover:bg-blue-400/20 rounded transition-colors cursor-pointer mr-1" 
-                        title="Editar Transação" 
-                        onClick={() => setEditingTx(JSON.parse(JSON.stringify(t)))}
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      {isSale && (
+                    <td className="text-center whitespace-nowrap" style={{ padding: '12px 8px' }}>
+                      <div onClick={e => e.stopPropagation()}>
                         <button 
-                          className="p-1.5 text-warning hover:bg-warning/20 rounded transition-colors cursor-pointer mr-1" 
-                          title="Fazer Devolução Rápida" 
-                          onClick={() => handleReturn(t)}
+                          className="p-2 text-primary hover:bg-primary/20 rounded transition-colors cursor-pointer" 
+                          style={{ margin: '0 4px' }}
+                          title="Imprimir Cupom" 
+                          onClick={() => printReceipt(t)}
                         >
-                          <Undo2 size={18} />
+                          <Printer size={24} />
                         </button>
-                      )}
-                      <button 
-                        className="p-1.5 text-danger hover:bg-danger/20 rounded transition-colors cursor-pointer" 
-                        title="Excluir Transação Permanentemente" 
-                        onClick={() => handleDelete(t.id)}
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                        <button 
+                          className="p-2 rounded transition-colors cursor-pointer" 
+                          style={{ margin: '0 4px', color: '#10b981' }}
+                          onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)'}
+                          onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          title="Editar Transação" 
+                          onClick={() => setEditingTx(JSON.parse(JSON.stringify(t)))}
+                        >
+                          <Edit2 size={24} />
+                        </button>
+                        {isSale && (
+                          <button 
+                            className="p-2 rounded transition-colors cursor-pointer" 
+                            style={{ margin: '0 4px', color: '#eab308' }}
+                            onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(234, 179, 8, 0.2)'}
+                            onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="Fazer Devolução Rápida" 
+                            onClick={() => handleReturn(t)}
+                          >
+                            <Undo2 size={24} />
+                          </button>
+                        )}
+                        <button 
+                          className="p-2 text-danger hover:bg-danger/20 rounded transition-colors cursor-pointer" 
+                          style={{ margin: '0 0 0 4px' }}
+                          title="Excluir Transação Permanentemente" 
+                          onClick={() => handleDelete(t.id)}
+                        >
+                          <Trash2 size={24} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -371,11 +389,26 @@ export const SalesHistory = () => {
           </table>
         </div>
       </div>
+      </div>
 
       {editingTx && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-surface)] w-full max-w-2xl rounded-xl shadow-2xl border border-[var(--border)] overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-black/20">
+        <div 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+          }}
+          className="animate-fade-in"
+        >
+          <div 
+            style={{ 
+              backgroundColor: 'var(--bg-surface)', width: '100%', maxWidth: '700px', 
+              borderRadius: '16px', border: '2px solid var(--primary)', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' 
+            }}
+          >
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
               <h2 className="text-xl font-bold flex items-center gap-2"><Edit2 size={24} className="text-primary"/> Editar Transação #{editingTx.id}</h2>
               <button className="p-1 hover:bg-white/10 rounded-full transition-colors" onClick={() => setEditingTx(null)}>
                 <X size={24} />
@@ -506,6 +539,131 @@ export const SalesHistory = () => {
         </div>
       )}
 
-    </div>
+      {selectedTx && (
+        <div 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+          }}
+          className="animate-fade-in"
+          onClick={() => setSelectedTx(null)}
+        >
+          <div 
+            style={{ 
+              backgroundColor: 'var(--bg-surface)', width: '100%', maxWidth: '500px', 
+              borderRadius: '16px', border: '2px solid var(--primary)', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' 
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+              <h2 className="text-xl font-bold flex items-center gap-2"><Receipt size={24} className="text-primary"/> Detalhes da Transação #{selectedTx.id}</h2>
+              <button className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer" onClick={() => setSelectedTx(null)}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '24px', overflowY: 'auto' }}>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Data / Hora</p>
+                  <p className="font-mono">{format(selectedTx.date, 'dd/MM/yyyy HH:mm')}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Operador</p>
+                  <p className="font-bold text-yellow-500 uppercase">{selectedTx.profile}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Pagamento</p>
+                  <p className="font-bold uppercase text-muted">{selectedTx.paymentMethod === 'cash' ? 'Dinheiro' : selectedTx.paymentMethod === 'credit' ? 'Crédito' : selectedTx.paymentMethod === 'debit' ? 'Débito' : selectedTx.paymentMethod === 'pix' ? 'PIX' : 'Múltiplo'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Tipo</p>
+                  <p className="font-bold">{selectedTx.type === 'sale' ? 'Venda' : selectedTx.type === 'expense' ? 'Despesa' : 'Devolução'}</p>
+                </div>
+              </div>
+
+              {selectedTx.clientName && (
+                <div className="mb-6 p-3 bg-black/20 rounded-lg border border-[var(--border)]">
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Cliente</p>
+                  <p className="font-bold">{selectedTx.clientName}</p>
+                  {/* @ts-ignore */}
+                  {selectedTx.clientPhone && <p className="text-sm text-muted">{selectedTx.clientPhone}</p>}
+                </div>
+              )}
+
+              <div className="mb-6">
+                <p className="text-xs text-muted font-bold uppercase mb-2">Itens da Transação</p>
+                <div className="flex flex-col gap-2">
+                  {selectedTx.items.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center p-2 bg-black/20 rounded border border-[var(--border)]">
+                      <div>
+                        <p className="font-bold text-sm">{item.quantity}x {item.name}</p>
+                        <p className="text-[10px] text-muted">Custo Un: R$ {(item.cost || 0).toFixed(2).replace('.', ',')} | Venda Un: R$ {(item.price || 0).toFixed(2).replace('.', ',')}</p>
+                      </div>
+                      <p className="font-bold">R$ {item.total.toFixed(2).replace('.', ',')}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 p-4 bg-black/30 rounded-lg border border-[var(--border)]">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Subtotal:</span>
+                  <span>R$ {(selectedTx.total + (selectedTx.discount || 0)).toFixed(2).replace('.', ',')}</span>
+                </div>
+                {selectedTx.discount && selectedTx.discount > 0 ? (
+                  <div className="flex justify-between text-sm text-orange-500">
+                    <span>Desconto Extra:</span>
+                    <span>- R$ {selectedTx.discount.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between text-base font-bold mt-1 mb-2 pt-1 border-t border-[var(--border)/50]">
+                  <span>Total Cobrado:</span>
+                  <span>R$ {selectedTx.total.toFixed(2).replace('.', ',')}</span>
+                </div>
+                
+                {selectedTx.machineFee && selectedTx.machineFee > 0 ? (
+                  <div className="flex justify-between text-sm text-purple-400">
+                    <span>Taxa Maquininha:</span>
+                    <span>- R$ {selectedTx.machineFee.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                ) : null}
+                
+                {(() => {
+                  const totalCost = selectedTx.items.reduce((sum: number, item: any) => sum + ((item.cost || 0) * item.quantity), 0);
+                  const realProfit = selectedTx.total - (selectedTx.machineFee || 0) - totalCost;
+                  return (
+                    <>
+                      {totalCost > 0 && (
+                        <div className="flex justify-between text-sm text-danger">
+                          <span>Custo de Produtos:</span>
+                          <span>- R$ {totalCost.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-lg font-black mt-2 pt-2 border-t border-[var(--border)] text-success">
+                        <span>LUCRO REAL:</span>
+                        <span>R$ {realProfit.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+            
+            <div style={{ padding: '16px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+              <button 
+                className="btn btn-primary w-full"
+                onClick={() => setSelectedTx(null)}
+              >
+                Fechar Detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

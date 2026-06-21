@@ -6,7 +6,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { RegisterLossModal } from '../components/RegisterLossModal';
 
 export const Pos = () => {
-  const [transactionProfile, setTransactionProfile] = useState<Profile>('chaveiro');
+  const [transactionProfile, setTransactionProfile] = useState<Profile>(() => {
+    return (localStorage.getItem('ichaveiro_last_profile') as Profile) || 'chaveiro';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ichaveiro_last_profile', transactionProfile);
+  }, [transactionProfile]);
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number }[]>([]);
@@ -29,10 +35,10 @@ export const Pos = () => {
   const [pendingClientPhone, setPendingClientPhone] = useState('');
 
   // Cash Register (Caixa) Session states
-  const [openRegisterCash, setOpenRegisterCash] = useState<string>('50,00'); // Fundo padrão inicial sugerido
+  const [openRegisterCash, setOpenRegisterCash] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
   const [showCloseRegisterModal, setShowCloseRegisterModal] = useState(false);
   const [closeRegisterCash, setCloseRegisterCash] = useState<string>('');
-  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>('50,00'); // Fundo padrão para deixar no dia seguinte
+  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
 
   // Expense states
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -608,9 +614,10 @@ export const Pos = () => {
         printCloseReport(activeSession, sessionTotals, closeCashVal, leftInDrawerVal);
       }
 
+      localStorage.setItem('ichaveiro_last_drawer_left', closeLeftInDrawer);
+      setOpenRegisterCash(closeLeftInDrawer);
       setShowCloseRegisterModal(false);
       setCloseRegisterCash('');
-      setCloseLeftInDrawer('50,00');
     } catch (err) {
       console.error(err);
       alert("Erro ao fechar caixa.");

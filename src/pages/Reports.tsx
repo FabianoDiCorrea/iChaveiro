@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import type { Profile } from '../db/db';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
-import { Download, Calendar, Printer } from 'lucide-react';
+import { Download, Calendar, Printer, X, Receipt } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -13,11 +13,12 @@ export const Reports = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [selectedTx, setSelectedTx] = useState<any>(null);
 
   const [printModalMode, setPrintModalMode] = useState<'thermal' | 'pdf' | null>(null);
   const [printModalDetailed, setPrintModalDetailed] = useState(false);
 
-  const getDates = () => {
+  const getDates = React.useCallback(() => {
     const now = new Date();
     switch (dateRange) {
       case 'today': return { start: startOfDay(now), end: endOfDay(now) };
@@ -31,9 +32,9 @@ export const Reports = () => {
         };
       default: return { start: startOfDay(now), end: endOfDay(now) };
     }
-  };
+  }, [dateRange, customStart, customEnd]);
 
-  const { start, end } = getDates();
+  const { start, end } = React.useMemo(() => getDates(), [getDates]);
 
   const transactions = useLiveQuery(
     () => {
@@ -43,7 +44,7 @@ export const Reports = () => {
       }
       return query.toArray();
     },
-    [start, end, viewProfile]
+    [start.getTime(), end.getTime(), viewProfile]
   );
 
   const losses = useLiveQuery(
@@ -54,7 +55,7 @@ export const Reports = () => {
       }
       return query.toArray();
     },
-    [start, end, viewProfile]
+    [start.getTime(), end.getTime(), viewProfile]
   ) || [];
 
   // Always receives a specific profile (never 'todos') and detail level
@@ -691,7 +692,12 @@ export const Reports = () => {
                 }
 
                 return (
-                  <tr key={t.id || i} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-surface-hover)]">
+                  <tr 
+                    key={t.id || i} 
+                    className="border-b border-[var(--border)] last:border-0 table-row-hover"
+                    onClick={() => setSelectedTx(t)}
+                    title="Clique para ver detalhes desta venda"
+                  >
                     <td className="py-3 px-4 text-xs font-mono whitespace-nowrap">{format(t.date, 'dd/MM/yyyy HH:mm')}</td>
                     <td className="py-3 px-4 text-xs font-bold uppercase text-yellow-500">{t.profile}</td>
                     <td className="py-3 px-4">{typeBadge}</td>
@@ -863,6 +869,131 @@ export const Reports = () => {
             >
               Cancelar
             </button>
+          </div>
+        </div>
+      )}
+
+      {selectedTx && (
+        <div 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+          }}
+          className="animate-fade-in"
+          onClick={() => setSelectedTx(null)}
+        >
+          <div 
+            style={{ 
+              backgroundColor: 'var(--bg-surface)', width: '100%', maxWidth: '500px', 
+              borderRadius: '16px', border: '2px solid var(--primary)', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' 
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+              <h2 className="text-xl font-bold flex items-center gap-2"><Receipt size={24} className="text-primary"/> Detalhes da Transação #{selectedTx.id}</h2>
+              <button className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer" onClick={() => setSelectedTx(null)}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '24px', overflowY: 'auto' }}>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Data / Hora</p>
+                  <p className="font-mono">{format(selectedTx.date, 'dd/MM/yyyy HH:mm')}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Operador</p>
+                  <p className="font-bold text-yellow-500 uppercase">{selectedTx.profile}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Pagamento</p>
+                  <p className="font-bold uppercase text-muted">{selectedTx.paymentMethod === 'cash' ? 'Dinheiro' : selectedTx.paymentMethod === 'credit' ? 'Crédito' : selectedTx.paymentMethod === 'debit' ? 'Débito' : selectedTx.paymentMethod === 'pix' ? 'PIX' : 'Múltiplo'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Tipo</p>
+                  <p className="font-bold">{selectedTx.type === 'sale' ? 'Venda' : selectedTx.type === 'expense' ? 'Despesa' : 'Devolução'}</p>
+                </div>
+              </div>
+
+              {selectedTx.clientName && (
+                <div className="mb-6 p-3 bg-black/20 rounded-lg border border-[var(--border)]">
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Cliente</p>
+                  <p className="font-bold">{selectedTx.clientName}</p>
+                  {selectedTx.clientPhone && <p className="text-sm text-muted">{selectedTx.clientPhone}</p>}
+                </div>
+              )}
+
+              <div className="mb-6">
+                <p className="text-xs text-muted font-bold uppercase mb-2">Itens da Transação</p>
+                <div className="flex flex-col gap-2">
+                  {selectedTx.items.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center p-2 bg-black/20 rounded border border-[var(--border)]">
+                      <div>
+                        <p className="font-bold text-sm">{item.quantity}x {item.name}</p>
+                        <p className="text-[10px] text-muted">Custo Un: R$ {(item.cost || 0).toFixed(2).replace('.', ',')} | Venda Un: R$ {(item.price || 0).toFixed(2).replace('.', ',')}</p>
+                      </div>
+                      <p className="font-bold">R$ {item.total.toFixed(2).replace('.', ',')}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 p-4 bg-black/30 rounded-lg border border-[var(--border)]">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Subtotal:</span>
+                  <span>R$ {(selectedTx.total + (selectedTx.discount || 0)).toFixed(2).replace('.', ',')}</span>
+                </div>
+                {selectedTx.discount > 0 && (
+                  <div className="flex justify-between text-sm text-orange-500">
+                    <span>Desconto Extra:</span>
+                    <span>- R$ {selectedTx.discount.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-bold mt-1 mb-2 pt-1 border-t border-[var(--border)/50]">
+                  <span>Total Cobrado:</span>
+                  <span>R$ {selectedTx.total.toFixed(2).replace('.', ',')}</span>
+                </div>
+                
+                {selectedTx.machineFee > 0 && (
+                  <div className="flex justify-between text-sm text-purple-400">
+                    <span>Taxa Maquininha:</span>
+                    <span>- R$ {selectedTx.machineFee.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                )}
+                
+                {(() => {
+                  const totalCost = selectedTx.items.reduce((sum: number, item: any) => sum + ((item.cost || 0) * item.quantity), 0);
+                  const realProfit = selectedTx.total - (selectedTx.machineFee || 0) - totalCost;
+                  return (
+                    <>
+                      {totalCost > 0 && (
+                        <div className="flex justify-between text-sm text-danger">
+                          <span>Custo de Produtos:</span>
+                          <span>- R$ {totalCost.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-lg font-black mt-2 pt-2 border-t border-[var(--border)] text-success">
+                        <span>LUCRO REAL:</span>
+                        <span>R$ {realProfit.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+            
+            <div style={{ padding: '16px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+              <button 
+                className="btn btn-primary w-full"
+                onClick={() => setSelectedTx(null)}
+              >
+                Fechar Detalhes
+              </button>
+            </div>
           </div>
         </div>
       )}

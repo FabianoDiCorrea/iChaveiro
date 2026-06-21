@@ -351,7 +351,7 @@ export const Inventory = () => {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="bg-[var(--bg-surface)] sticky top-0 z-10">
               <tr className="border-b border-[var(--border)] text-muted text-xs uppercase tracking-wide">
-                <th className="py-2 px-2 font-medium">Produto / Descrição</th>
+                <th className="py-2 px-2 font-medium" style={{ maxWidth: '180px', width: '180px' }}>Produto / Descrição</th>
                 <th className="py-2 px-2 font-medium">Código</th>
                 <th className="py-2 px-2 font-medium">Últ. Compra</th>
                 <th className="py-2 px-2 font-medium">Últ. Venda</th>
@@ -402,7 +402,7 @@ export const Inventory = () => {
 
                 return (
                   <tr key={product.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-surface-hover)]">
-                    <td className="py-2 px-2 font-bold whitespace-normal min-w-[200px]">
+                    <td className="py-2 px-2 font-bold whitespace-normal" style={{ maxWidth: '180px', width: '180px' }}>
                       {product.name}
                       {(product.brand || product.model) && <span className="ml-2 text-[10px] text-muted font-normal bg-[var(--bg-surface)] px-1.5 py-0.5 rounded uppercase">{[product.brand, product.model].filter(Boolean).join(' / ')}</span>}
                     </td>
@@ -496,17 +496,38 @@ export const Inventory = () => {
 
                     <td className="py-2 px-2 text-right font-bold text-success text-sm">R$ {product.price.toFixed(2).replace('.', ',')}</td>
                     <td className="py-2 px-2">
-                      <div className="flex items-center justify-end flex-nowrap gap-1">
+                      <div className="flex items-center justify-end flex-nowrap">
                         {hasInventoryByProduct(product) && (
-                          <button className="p-1 text-primary hover:bg-primary/20 rounded transition-colors cursor-pointer" title="Registrar Compra (Estoque)" onClick={() => { setEditingProduct(product); setIsAddStockModalOpen(true); setStockEntry({ qty: '', cost: product.costPrice ? product.costPrice.toString() : '' }); }}>
-                            <Plus size={16} />
+                          <button 
+                            className="p-2 rounded transition-colors cursor-pointer" 
+                            style={{ margin: '0 4px', color: '#3b82f6' }}
+                            onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'}
+                            onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="Registrar Compra (Estoque)" 
+                            onClick={() => { setEditingProduct(product); setIsAddStockModalOpen(true); setStockEntry({ qty: '', cost: product.costPrice ? product.costPrice.toString() : '' }); }}
+                          >
+                            <Plus size={24} />
                           </button>
                         )}
-                        <button className="p-1 text-muted hover:text-primary transition-colors cursor-pointer" title="Editar Produto" onClick={() => handleOpenModal(product)}>
-                          <Edit2 size={16} />
+                        <button 
+                          className="p-2 rounded transition-colors cursor-pointer" 
+                          style={{ margin: '0 4px', color: '#10b981' }}
+                          onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)'}
+                          onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          title="Editar Produto" 
+                          onClick={() => handleOpenModal(product)}
+                        >
+                          <Edit2 size={24} />
                         </button>
-                        <button className="p-1 text-muted hover:text-danger transition-colors cursor-pointer" title="Excluir Produto" onClick={() => product.id && handleDelete(product.id)}>
-                          <Trash2 size={16} />
+                        <button 
+                          className="p-2 rounded transition-colors cursor-pointer" 
+                          style={{ margin: '0 0 0 4px', color: '#ef4444' }}
+                          onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'}
+                          onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          title="Excluir Produto" 
+                          onClick={() => product.id && handleDelete(product.id)}
+                        >
+                          <Trash2 size={24} />
                         </button>
                       </div>
                     </td>
@@ -714,8 +735,22 @@ export const Inventory = () => {
       )}
 
       {isAddStockModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-          <div className="glass-panel w-full max-w-sm p-6">
+        <div 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+          }}
+          className="animate-fade-in"
+        >
+          <div 
+            style={{ 
+              backgroundColor: 'var(--bg-surface)', width: '100%', maxWidth: '400px', 
+              borderRadius: '16px', border: '2px solid var(--primary)', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              padding: '24px'
+            }}
+          >
             <h2 className="text-xl font-bold mb-2">Registrar Compra</h2>
             <p className="text-sm text-muted mb-4">{editingProduct?.name}</p>
             
