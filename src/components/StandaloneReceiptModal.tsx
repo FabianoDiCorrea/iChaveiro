@@ -114,7 +114,7 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
           <div class="text-center bold" style="font-size: 13px; margin-bottom: 5px; text-decoration: underline;">CUPOM AVULSO</div>
           <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
-          ${clientName ? \`<div class="divider"></div><div class="bold">Cliente: \${clientName}</div>\` : ''}
+          ${clientName ? `<div class="divider"></div><div class="bold">Cliente: ${clientName}</div>` : ''}
           <div class="divider"></div>
           <table>
             <thead>
@@ -125,41 +125,41 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
               </tr>
             </thead>
             <tbody>
-              \${items.map(i => {
+              ${items.map(i => {
                 const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
                 const itemOriginalTotal = orig * i.quantity;
-                return \`
+                return `
                   <tr>
-                    <td class="text-left" valign="top">\${i.quantity}x</td>
+                    <td class="text-left" valign="top">${i.quantity}x</td>
                     <td class="text-left" valign="top">
-                      \${i.name}<br>
-                      \${(i.originalPrice !== undefined && i.originalPrice > i.price) ? \`
+                      ${i.name}<br>
+                      ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
                         <span style="font-size: 10px; color: #000; font-weight: bold;">
-                          De: <span style="text-decoration: line-through;">R$ \${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                          Por: R$ \${i.price.toFixed(2).replace('.', ',')} (Desc: R$ \${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
+                          De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
                         </span>
-                      \` : \`
-                        <span style="font-size: 10px; color: #000; font-weight: bold;">Vlr. Unit: R$ \${i.price.toFixed(2).replace('.', ',')}</span>
-                      \`}
+                      ` : `
+                        <span style="font-size: 10px; color: #000; font-weight: bold;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
+                      `}
                     </td>
-                    <td class="text-right" valign="top">R$ \${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
+                    <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
                   </tr>
-                \`;
+                `;
               }).join('')}
             </tbody>
           </table>
           <div class="divider"></div>
           <table>
-            <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ \${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
-            \${quantityDiscount > 0 ? \`<tr><td class="bold">Desc. Quantidade:</td><td class="text-right">-R$ \${quantityDiscount.toFixed(2).replace('.', ',')}</td></tr>\` : ''}
-            <tr><td class="bold header-title">TOTAL:</td><td class="text-right header-title">R$ \${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
+            <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ ${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
+            ${quantityDiscount > 0 ? `<tr><td class="bold">Desc. Quantidade:</td><td class="text-right">-R$ ${quantityDiscount.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+            <tr><td class="bold header-title">TOTAL:</td><td class="text-right header-title">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
           </table>
           <div class="divider"></div>
           <div class="text-center" style="font-size: 10px;">* Este comprovante não possui valor fiscal *</div>
           <div class="text-center" style="font-size: 10px;">Apenas para simples conferência.</div>
         </body>
         </html>
-      \`;
+      `;
       printWindow.document.write(html);
       printWindow.document.close();
       printWindow.focus();
