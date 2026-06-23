@@ -467,12 +467,12 @@ export const Pos = () => {
                         <td class="text-left" valign="top">
                           ${i.name}<br>
                           ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                            <span style="font-size: 10px; color: #000; font-weight: bold;">
-                              De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
-                            </span>
+                            <div style="font-size: 10px; color: #000;">
+                              <b>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</b>
+                            </div>
                           ` : `
-                            <span style="font-size: 10px; color: #000; font-weight: bold;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
+                            <div style="font-size: 10px; color: #000;"><b>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</b></div>
                           `}
                         </td>
                         <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>

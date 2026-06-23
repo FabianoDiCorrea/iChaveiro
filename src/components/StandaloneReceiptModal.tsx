@@ -112,7 +112,6 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
           <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
           <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
-          <div class="text-center bold" style="font-size: 13px; margin-bottom: 5px; text-decoration: underline;">CUPOM AVULSO</div>
           <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
           ${clientName ? `<div class="divider"></div><div class="bold">Cliente: ${clientName}</div>` : ''}
           <div class="divider"></div>
@@ -134,12 +133,12 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
                     <td class="text-left" valign="top">
                       ${i.name}<br>
                       ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                        <span style="font-size: 10px; color: #000; font-weight: bold;">
-                          De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
-                        </span>
+                        <div style="font-size: 10px; color: #000;">
+                          <b>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</b>
+                        </div>
                       ` : `
-                        <span style="font-size: 10px; color: #000; font-weight: bold;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
+                        <div style="font-size: 10px; color: #000;"><b>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</b></div>
                       `}
                     </td>
                     <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
@@ -152,11 +151,12 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           <table>
             <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ ${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
             ${quantityDiscount > 0 ? `<tr><td class="bold">Desc. Quantidade:</td><td class="text-right">-R$ ${quantityDiscount.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-            <tr><td class="bold header-title">TOTAL:</td><td class="text-right header-title">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
+            <tr><td class="bold header-title">TOTAL A PAGAR:</td><td class="text-right header-title">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
+            <tr><td>Recebido:</td><td class="text-right">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
+            <tr><td class="bold">Troco:</td><td class="text-right bold">R$ 0,00</td></tr>
           </table>
           <div class="divider"></div>
-          <div class="text-center" style="font-size: 10px;">* Este comprovante não possui valor fiscal *</div>
-          <div class="text-center" style="font-size: 10px;">Apenas para simples conferência.</div>
+          <div class="text-center">Obrigado pela preferencia!</div>
         </body>
         </html>
       `;
