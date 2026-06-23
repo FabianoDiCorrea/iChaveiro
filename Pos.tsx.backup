@@ -4,17 +4,10 @@ import type { Profile } from '../db/db';
 import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { RegisterLossModal } from '../components/RegisterLossModal';
-import { runAutoBackup } from '../db/sync';
 import { StandaloneReceiptModal } from '../components/StandaloneReceiptModal';
 
 export const Pos = () => {
-  const [transactionProfile, setTransactionProfile] = useState<Profile>(() => {
-    return (localStorage.getItem('ichaveiro_last_profile') as Profile) || 'chaveiro';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('ichaveiro_last_profile', transactionProfile);
-  }, [transactionProfile]);
+  const [transactionProfile, setTransactionProfile] = useState<Profile>('chaveiro');
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number }[]>([]);
@@ -38,13 +31,10 @@ export const Pos = () => {
   const [pendingClientPhone, setPendingClientPhone] = useState('');
 
   // Cash Register (Caixa) Session states
-  const [openRegisterCash, setOpenRegisterCash] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
+  const [openRegisterCash, setOpenRegisterCash] = useState<string>('50,00'); // Fundo padrão inicial sugerido
   const [showCloseRegisterModal, setShowCloseRegisterModal] = useState(false);
   const [closeRegisterCash, setCloseRegisterCash] = useState<string>('');
-  const [selectedEmployeesToPay, setSelectedEmployeesToPay] = useState<number[]>([]);
-  const [customWages, setCustomWages] = useState<Record<number, string>>({});
-  const employees = useLiveQuery(() => db.employees?.toArray() || []);
-  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
+  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>('50,00'); // Fundo padrão para deixar no dia seguinte
 
   // Expense states
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -280,7 +270,7 @@ export const Pos = () => {
           for (const item of items) {
             if (item.productId) {
               const product = await db.products.get(item.productId);
-              if (product && product.hasStock) {
+              if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
                 await db.products.update(product.id!, { stock: product.stock - item.quantity });
               }
             }
@@ -339,7 +329,7 @@ export const Pos = () => {
         for (const item of sale.items) {
           if (item.productId) {
             const product = await db.products.get(item.productId);
-            if (product && product.hasStock) {
+            if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
               await db.products.update(product.id!, { stock: product.stock + item.quantity });
             }
           }
@@ -364,7 +354,7 @@ export const Pos = () => {
           for (const item of items) {
             if (item.productId) {
               const product = await db.products.get(item.productId);
-              if (product && product.hasStock) {
+              if (product && (product.serviceType === 'key' || product.serviceType === 'spring' || product.serviceType === 'screw')) {
                 await db.products.update(product.id!, { stock: product.stock - item.quantity });
               }
             }
@@ -524,7 +514,7 @@ export const Pos = () => {
     }
   };
 
-  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number }[] = []) => {
+  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number) => {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
       const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
@@ -532,8 +522,6 @@ export const Pos = () => {
       const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0);
       const difference = closeCash - expectedCash;
       const withdrawal = closeCash - leftInDrawer;
-      const totalWages = wages.reduce((sum, w) => sum + w.amount, 0);
-      const pureExpenses = (totals.expenses || 0) - totalWages;
 
       const html = `
         <html>
@@ -561,8 +549,7 @@ export const Pos = () => {
           <table>
             <tr><td class="bold">Fundo de Abertura:</td><td class="text-right">R$ ${session.initialCash.toFixed(2).replace('.', ',')}</td></tr>
             <tr><td class="bold">Vendas Dinheiro (+):</td><td class="text-right">R$ ${totals.cash.toFixed(2).replace('.', ',')}</td></tr>
-            ${pureExpenses > 0 ? `<tr><td class="bold">Despesas (Insumos) (-):</td><td class="text-right">R$ ${pureExpenses.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-            ${wages.map(w => `<tr><td class="bold">Diária (${w.name}) (-):</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
+            ${(totals.expenses || 0) > 0 ? `<tr><td class="bold">Despesas/Retiradas (-):</td><td class="text-right">R$ ${(totals.expenses || 0).toFixed(2).replace('.', ',')}</td></tr>` : ''}
             <tr><td class="bold">Dinheiro Esperado:</td><td class="text-right font-black">R$ ${expectedCash.toFixed(2).replace('.', ',')}</td></tr>
             <tr><td class="bold">Dinheiro Contado:</td><td class="text-right">R$ ${closeCash.toFixed(2).replace('.', ',')}</td></tr>
             <tr style="color: ${difference >= 0 ? 'green' : 'red'};"><td class="bold">Diferença Dinheiro:</td><td class="text-right bold">R$ ${difference.toFixed(2).replace('.', ',')} (${difference >= 0 ? 'Sobrando' : 'Faltando'})</td></tr>
@@ -600,49 +587,16 @@ export const Pos = () => {
     if (!activeSession) return;
     const closeCashVal = parseCurrency(closeRegisterCash);
     const leftInDrawerVal = parseCurrency(closeLeftInDrawer);
-    
-    let totalWagesToPay = 0;
-    const wageDetails: { name: string, amount: number }[] = [];
-    
+    const expectedCashVal = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
+    const diffVal = closeCashVal - expectedCashVal;
+
     try {
-      if (selectedEmployeesToPay.length > 0 && employees) {
-        const empsToPay = employees.filter(e => selectedEmployeesToPay.includes(e.id!));
-        for (const emp of empsToPay) {
-          const wageStr = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
-          const wageVal = parseCurrency(wageStr);
-          totalWagesToPay += wageVal;
-          wageDetails.push({ name: emp.name, amount: wageVal });
-          await db.transactions.add({
-            profile: activeSession.profile,
-            type: 'expense',
-            items: [{
-              service: 'other',
-              name: `Pagamento de Diária: ${emp.name}`,
-              quantity: 1,
-              price: wageVal,
-              cost: 0,
-              total: wageVal
-            }],
-            total: wageVal,
-            paymentMethod: 'cash',
-            date: new Date()
-          });
-        }
-      }
-
-      // Expected gross cash BEFORE taking wages out
-      const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
-      const expectedNetCash = expectedGrossCash - totalWagesToPay;
-
-      // The user typed the GROSS physical cash they counted in the drawer (before taking wages out)
-      const diffVal = closeCashVal - expectedGrossCash;
-
       await db.cashSessions.update(activeSession.id!, {
         closedAt: new Date(),
-        expectedCash: expectedNetCash, // Save the final expected cash
-        actualCash: closeCashVal - totalWagesToPay, // Actual cash left in drawer after paying
+        expectedCash: expectedCashVal,
+        actualCash: closeCashVal,
         leftInDrawer: leftInDrawerVal,
-        difference: diffVal, // Use gross difference so history matches what they saw
+        difference: diffVal,
         status: 'closed',
         cashSales: sessionTotals.cash,
         pixSales: sessionTotals.pix,
@@ -650,18 +604,15 @@ export const Pos = () => {
         creditSales: sessionTotals.credit
       });
 
-      const updatedTotals = { ...sessionTotals, expenses: sessionTotals.expenses + totalWagesToPay };
+      // Ask to print closure report
       const shouldPrint = window.confirm("Deseja imprimir o comprovante de fechamento de caixa?");
       if (shouldPrint) {
-        printCloseReport(activeSession, updatedTotals, closeCashVal - totalWagesToPay, leftInDrawerVal, wageDetails);
+        printCloseReport(activeSession, sessionTotals, closeCashVal, leftInDrawerVal);
       }
 
-      localStorage.setItem('ichaveiro_last_drawer_left', closeLeftInDrawer);
-      setOpenRegisterCash(closeLeftInDrawer);
       setShowCloseRegisterModal(false);
       setCloseRegisterCash('');
-      
-      runAutoBackup();
+      setCloseLeftInDrawer('50,00');
     } catch (err) {
       console.error(err);
       alert("Erro ao fechar caixa.");
@@ -1824,206 +1775,123 @@ export const Pos = () => {
               Fechar Caixa (Turno)
             </h2>
 
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.95rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Fundo de Abertura:</span>
+                <span style={{ fontWeight: 'bold' }}>R$ {activeSession.initialCash.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Vendas em Dinheiro (+):</span>
+                <span style={{ fontWeight: 'bold', color: '#4ade80' }}>+ R$ {sessionTotals.cash.toFixed(2).replace('.', ',')}</span>
+              </div>
+              {sessionTotals.expenses > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#f87171' }}>Despesas/Retiradas (-):</span>
+                  <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {sessionTotals.expenses.toFixed(2).replace('.', ',')}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '6px', fontSize: '1.05rem' }}>
+                <span style={{ color: '#ffffff', fontWeight: 'bold' }}>Dinheiro Esperado em Caixa:</span>
+                <strong style={{ color: '#eab308' }}>R$ {(activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses).toFixed(2).replace('.', ',')}</strong>
+              </div>
+              <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '4px 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Vendas em PIX:</span>
+                <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.pix.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#94a3b8' }}>Vendas Cartão (Débito/Crédito):</span>
+                <span style={{ fontWeight: 'bold' }}>R$ {(sessionTotals.debit + sessionTotals.credit).toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8', fontWeight: 'bold' }}>
+                <span>Total de Vendas do Período:</span>
+                <span>R$ {sessionTotals.totalSales.toFixed(2).replace('.', ',')}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '1rem' }}>
+                  DINHEIRO FÍSICO CONTADO NO CAIXA (R$):
+                </label>
+                <input
+                  type="text"
+                  placeholder="0,00"
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    border: '3px solid #dc2626',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    color: '#4ade80',
+                    fontSize: '1.8rem',
+                    fontWeight: '900',
+                    textAlign: 'center',
+                    outline: 'none'
+                  }}
+                  value={closeRegisterCash}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val === '') val = '0';
+                    const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
+                    setCloseRegisterCash(formatted);
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  VALOR A DEIXAR NO CAIXA P/ AMANHÃ (FUNDO) (R$):
+                </label>
+                <input
+                  type="text"
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    border: '2px solid #475569',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#ffffff',
+                    fontSize: '1.2rem',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    outline: 'none'
+                  }}
+                  value={closeLeftInDrawer}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val === '') val = '0';
+                    const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
+                    setCloseLeftInDrawer(formatted);
+                  }}
+                />
+              </div>
+            </div>
+
             {(() => {
-              const pendingWages = employees?.filter(e => selectedEmployeesToPay.includes(e.id!)).reduce((sum, e) => {
-                const wageStr = customWages[e.id!] !== undefined ? customWages[e.id!] : e.dailyWage.toFixed(2).replace('.', ',');
-                return sum + parseCurrency(wageStr);
-              }, 0) || 0;
-              const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
-              const expectedNetCash = expectedGrossCash - pendingWages;
-              
+              const expectedCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
               const closeCash = parseCurrency(closeRegisterCash);
               const leftInDrawer = parseCurrency(closeLeftInDrawer);
-              const diff = closeCash - expectedGrossCash;
-              const withdrawal = (closeCash - pendingWages) - leftInDrawer;
+              const diff = closeCash - expectedCash;
+              const withdrawal = closeCash - leftInDrawer;
 
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  
-                  {/* 1. Entradas e Saídas */}
-                  <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9rem' }}>
-                    
-                    <div style={{ color: '#38bdf8', fontWeight: 'bold', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>RESUMO DE ENTRADAS</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Fundo de Abertura:</span>
-                      <span style={{ fontWeight: 'bold' }}>R$ {activeSession.initialCash.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Vendas em Dinheiro:</span>
-                      <span style={{ fontWeight: 'bold', color: '#4ade80' }}>+ R$ {sessionTotals.cash.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Vendas em PIX:</span>
-                      <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.pix.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Vendas Cartão:</span>
-                      <span style={{ fontWeight: 'bold' }}>R$ {(sessionTotals.debit + sessionTotals.credit).toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    
-                    <div style={{ color: '#f87171', fontWeight: 'bold', margin: '8px 0 4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>RESUMO DE SAÍDAS (CUSTOS)</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#f87171' }}>Despesas / Retiradas:</span>
-                      <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {sessionTotals.expenses.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    {pendingWages > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#f87171' }}>Pagamento de Diárias:</span>
-                        <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {pendingWages.toFixed(2).replace('.', ',')}</span>
-                      </div>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9rem', textAlign: 'center' }}>
+                  <div>
+                    Diferença no Caixa: {' '}
+                    {diff > 0 ? (
+                      <span style={{ color: '#4ade80', fontWeight: 'bold' }}>+ R$ {diff.toFixed(2).replace('.', ',')} (Sobrando)</span>
+                    ) : diff < 0 ? (
+                      <span style={{ color: '#f87171', fontWeight: 'bold' }}>R$ {diff.toFixed(2).replace('.', ',')} (Faltando)</span>
+                    ) : (
+                      <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>R$ 0,00 (Tudo Ok!)</span>
                     )}
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px', fontSize: '1rem' }}>
-                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>LUCRO BRUTO DO PERÍODO:</span>
-                      <strong style={{ color: '#4ade80' }}>R$ {(sessionTotals.totalSales - sessionTotals.expenses - pendingWages).toFixed(2).replace('.', ',')}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem' }}>
-                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>DINHEIRO ESPERADO NA GAVETA:</span>
-                      <strong style={{ color: '#eab308' }}>R$ {expectedNetCash.toFixed(2).replace('.', ',')}</strong>
-                    </div>
                   </div>
-
-                  {/* 2. Diárias */}
-                  {employees && employees.filter(e => e.active).length > 0 && activeSession.profile === 'chaveiro' && (
-                    <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.85rem' }}>PAGAMENTO DE DIÁRIAS (MARQUE PARA ABATER DO CAIXA):</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {employees.filter(e => e.active).map(emp => {
-                          const isChecked = selectedEmployeesToPay.includes(emp.id!);
-                          const currentWage = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
-                          
-                          return (
-                          <div key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff', flex: 1 }}>
-                              <input 
-                                type="checkbox" 
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedEmployeesToPay([...selectedEmployeesToPay, emp.id!]);
-                                  else {
-                                    setSelectedEmployeesToPay(selectedEmployeesToPay.filter(id => id !== emp.id!));
-                                    const newWages = {...customWages};
-                                    delete newWages[emp.id!];
-                                    setCustomWages(newWages);
-                                  }
-                                }}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                              />
-                              <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{emp.name}</span>
-                            </label>
-                            {isChecked ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ color: '#f87171', fontWeight: 'bold', fontSize: '0.9rem' }}>- R$</span>
-                                <input 
-                                  type="text"
-                                  value={currentWage}
-                                  onChange={e => {
-                                    let val = e.target.value.replace(/\D/g, '');
-                                    if (val === '') val = '0';
-                                    const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
-                                    setCustomWages({...customWages, [emp.id!]: formatted});
-                                  }}
-                                  style={{
-                                    width: '70px',
-                                    backgroundColor: 'rgba(0,0,0,0.5)',
-                                    border: '1px solid #dc2626',
-                                    borderRadius: '4px',
-                                    padding: '4px',
-                                    color: '#f87171',
-                                    fontSize: '0.9rem',
-                                    fontWeight: 'bold',
-                                    textAlign: 'center',
-                                    outline: 'none'
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.9rem' }}>- R$ {emp.dailyWage.toFixed(2).replace('.', ',')}</span>
-                            )}
-                          </div>
-                        )})}
-                      </div>
+                  {withdrawal > 0 ? (
+                    <div style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '1rem', marginTop: '4px' }}>
+                      Retirada / Sangria Sugerida: R$ {withdrawal.toFixed(2).replace('.', ',')}
                     </div>
-                  )}
-
-                  {/* 3. Inputs */}
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-                      <label style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                        DINHEIRO FÍSICO CONTADO (R$):
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="0,00"
-                        style={{
-                          width: '100%',
-                          backgroundColor: 'rgba(0,0,0,0.5)',
-                          border: '2px solid #dc2626',
-                          borderRadius: '6px',
-                          padding: '8px',
-                          color: '#4ade80',
-                          fontSize: '1.2rem',
-                          fontWeight: 'bold',
-                          textAlign: 'center',
-                          outline: 'none'
-                        }}
-                        value={closeRegisterCash}
-                        onChange={e => {
-                          let val = e.target.value.replace(/\D/g, '');
-                          if (val === '') val = '0';
-                          const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
-                          setCloseRegisterCash(formatted);
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-                      <label style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                        FUNDO P/ AMANHÃ (R$):
-                      </label>
-                      <input
-                        type="text"
-                        style={{
-                          width: '100%',
-                          backgroundColor: 'rgba(0,0,0,0.4)',
-                          border: '2px solid #475569',
-                          borderRadius: '6px',
-                          padding: '8px',
-                          color: '#ffffff',
-                          fontSize: '1.2rem',
-                          fontWeight: 'bold',
-                          textAlign: 'center',
-                          outline: 'none'
-                        }}
-                        value={closeLeftInDrawer}
-                        onChange={e => {
-                          let val = e.target.value.replace(/\D/g, '');
-                          if (val === '') val = '0';
-                          const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
-                          setCloseLeftInDrawer(formatted);
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 4. Resumo de Diferença */}
-                  <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9rem', textAlign: 'center' }}>
-                    <div>
-                      Diferença no Caixa: {' '}
-                      {diff > 0 ? (
-                        <span style={{ color: '#4ade80', fontWeight: 'bold' }}>+ R$ {diff.toFixed(2).replace('.', ',')} (Sobrando)</span>
-                      ) : diff < 0 ? (
-                        <span style={{ color: '#f87171', fontWeight: 'bold' }}>R$ {diff.toFixed(2).replace('.', ',')} (Faltando)</span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>R$ 0,00 (Tudo Ok!)</span>
-                      )}
-                    </div>
-                    {withdrawal > 0 ? (
-                      <div style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '1rem', marginTop: '4px' }}>
-                        Retirada / Sangria Sugerida: R$ {withdrawal.toFixed(2).replace('.', ',')}
-                      </div>
-                    ) : null}
-                  </div>
+                  ) : null}
                 </div>
               );
             })()}
