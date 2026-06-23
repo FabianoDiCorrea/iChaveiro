@@ -153,4 +153,9 @@ db.version(9).stores({
   pendingSales: '++id, profile, date, clientName'
 });
 
+db.open().catch(err => {
+  console.error("Failed to open db:", err);
+  alert("Erro no Banco de Dados: " + err.message + "\n\nSe o problema persistir, você pode precisar limpar os dados do aplicativo para poder restaurar o backup.");
+});
+
 export { db };

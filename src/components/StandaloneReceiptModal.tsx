@@ -1,0 +1,374 @@
+import React, { useState, useRef } from 'react';
+import { db, type TransactionItem } from '../db/db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Search, Plus, Trash2, Printer, X } from 'lucide-react';
+
+interface StandaloneReceiptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ isOpen, onClose }) => {
+  const [items, setItems] = useState<TransactionItem[]>([]);
+  const [searchProduct, setSearchProduct] = useState('');
+  const [clientName, setClientName] = useState('');
+  
+  // Data e hora padrão: agora
+  const [receiptDate, setReceiptDate] = useState(() => {
+    const now = new Date();
+    // Format to YYYY-MM-DDTHH:mm
+    const offset = now.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
+    return localISOTime;
+  });
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const products = useLiveQuery(() => db.products.toArray(), []);
+
+  if (!isOpen) return null;
+
+  const parseSearchInput = (input: string) => {
+    const match = input.match(/^(.+?)(?:[xX*]\s*(\d+))?$/);
+    if (!match) return { term: input.trim(), qty: 1 };
+    return {
+      term: match[1].trim(),
+      qty: match[2] ? parseInt(match[2], 10) : 1
+    };
+  };
+
+  let filteredProducts: any[] = [];
+  let currentQty = 1;
+
+  if (searchProduct.trim() !== '') {
+    const parsed = parseSearchInput(searchProduct);
+    currentQty = parsed.qty;
+    const term = parsed.term.toLowerCase();
+
+    const exactCodeMatches = products?.filter(p => p.code?.toLowerCase() === term) || [];
+    const isNumeric = /^\d+$/.test(term);
+
+    if (exactCodeMatches.length > 0) {
+      filteredProducts = exactCodeMatches;
+    } else if (!isNumeric) {
+      filteredProducts = products?.filter(p =>
+        p.name.toLowerCase().includes(term) ||
+        (p.brand?.toLowerCase() || '').includes(term)
+      ) || [];
+    }
+  }
+
+  const addProductToCart = (product: any, qty: number = 1) => {
+    let displayName = product.name;
+    if (product.code) displayName = `[${product.code}] ${displayName}`;
+    if (product.brand) displayName = `${displayName} (${product.brand})`;
+
+    setItems([...items, {
+      service: product.serviceType,
+      name: displayName,
+      quantity: qty,
+      price: product.price,
+      originalPrice: product.price,
+      cost: product.costPrice || 0,
+      total: product.price * qty,
+      productId: product.id
+    } as any]);
+
+    setSearchProduct('');
+    if (searchInputRef.current) searchInputRef.current.focus();
+  };
+
+  const handleFastAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (filteredProducts.length > 0) {
+      addProductToCart(filteredProducts[0], currentQty);
+    } else if (searchProduct.trim() !== '') {
+      const parsed = parseSearchInput(searchProduct);
+      setItems([...items, {
+        service: 'other',
+        name: parsed.term,
+        quantity: parsed.qty,
+        price: 0,
+        originalPrice: 0,
+        cost: 0,
+        total: 0
+      } as any]);
+      setSearchProduct('');
+      if (searchInputRef.current) searchInputRef.current.focus();
+    }
+  };
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const updateItemPrice = (index: number, val: string) => {
+    const parsedPrice = Number(val.replace(',', '.')) || 0;
+    const newItems = [...items];
+    newItems[index].price = parsedPrice;
+    newItems[index].total = parsedPrice * newItems[index].quantity;
+    setItems(newItems);
+  };
+
+  const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+
+  const handlePrint = () => {
+    if (items.length === 0) return alert('Adicione itens ao cupom avulso.');
+
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (printWindow) {
+      // Use chosen date
+      const dateObj = new Date(receiptDate);
+      const dateStr = dateObj.toLocaleString('pt-BR');
+      
+      const originalSubtotal = items.reduce((sum, i) => {
+        const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+        return sum + (orig * i.quantity);
+      }, 0);
+      const quantityDiscount = items.reduce((sum, i) => {
+        const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+        return sum + ((orig - i.price) * i.quantity);
+      }, 0);
+
+      const html = `
+        <html>
+        <head>
+          <title>Cupom Não Fiscal</title>
+          <style>
+            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 10px; color: black; }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .bold { font-weight: bold; }
+            .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { padding: 2px 0; }
+            .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
+          <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
+          <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
+          <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
+          <div class="text-center bold" style="font-size: 13px; margin-bottom: 5px; text-decoration: underline;">CUPOM AVULSO</div>
+          <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
+          ${clientName ? \`<div class="divider"></div><div class="bold">Cliente: \${clientName}</div>\` : ''}
+          <div class="divider"></div>
+          <table>
+            <thead>
+              <tr>
+                <th class="text-left" style="width: 15%">Qtd</th>
+                <th class="text-left" style="width: 60%">Item</th>
+                <th class="text-right" style="width: 25%">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${items.map(i => {
+                const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+                const itemOriginalTotal = orig * i.quantity;
+                return \`
+                  <tr>
+                    <td class="text-left" valign="top">\${i.quantity}x</td>
+                    <td class="text-left" valign="top">
+                      \${i.name}<br>
+                      \${(i.originalPrice !== undefined && i.originalPrice > i.price) ? \`
+                        <span style="font-size: 10px; color: #000; font-weight: bold;">
+                          De: <span style="text-decoration: line-through;">R$ \${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                          Por: R$ \${i.price.toFixed(2).replace('.', ',')} (Desc: R$ \${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
+                        </span>
+                      \` : \`
+                        <span style="font-size: 10px; color: #000; font-weight: bold;">Vlr. Unit: R$ \${i.price.toFixed(2).replace('.', ',')}</span>
+                      \`}
+                    </td>
+                    <td class="text-right" valign="top">R$ \${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
+                  </tr>
+                \`;
+              }).join('')}
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <table>
+            <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ \${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
+            \${quantityDiscount > 0 ? \`<tr><td class="bold">Desc. Quantidade:</td><td class="text-right">-R$ \${quantityDiscount.toFixed(2).replace('.', ',')}</td></tr>\` : ''}
+            <tr><td class="bold header-title">TOTAL:</td><td class="text-right header-title">R$ \${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
+          </table>
+          <div class="divider"></div>
+          <div class="text-center" style="font-size: 10px;">* Este comprovante não possui valor fiscal *</div>
+          <div class="text-center" style="font-size: 10px;">Apenas para simples conferência.</div>
+        </body>
+        </html>
+      \`;
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+        
+        // Clear and close modal after print
+        setItems([]);
+        setClientName('');
+        onClose();
+      }, 250);
+    }
+  };
+
+  return (
+    <div 
+      style={{ 
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, 
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+      }}
+      className="animate-fade-in"
+    >
+      <div 
+        style={{ 
+          backgroundColor: '#1e293b', border: '4px solid #38bdf8', borderRadius: '16px', padding: '24px', 
+          maxWidth: '800px', width: '95%', maxHeight: '90vh', overflowY: 'auto',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', gap: '20px', color: 'white'
+        }}
+        className="animate-scale-in"
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase', margin: 0 }}>
+            Gerar Cupom Avulso
+          </h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+            <X size={28} />
+          </button>
+        </div>
+        
+        <p style={{ color: '#94a3b8', fontSize: '0.9rem', margin: '-10px 0 10px 0' }}>
+          Imprima um comprovante sem registrar a venda no sistema e sem baixar estoque.
+        </p>
+
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 2, minWidth: '200px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+              Cliente / Empresa
+            </label>
+            <input 
+              type="text" 
+              style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px', fontSize: '1rem', color: 'white', outline: 'none' }}
+              value={clientName} onChange={e => setClientName(e.target.value)}
+              placeholder="Nome (Opcional)"
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+              Data e Hora do Cupom
+            </label>
+            <input 
+              type="datetime-local" 
+              style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px', fontSize: '1rem', color: 'white', outline: 'none' }}
+              value={receiptDate} onChange={e => setReceiptDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Product Search Box */}
+        <div style={{ backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '12px', padding: '16px' }}>
+          <form onSubmit={handleFastAdd} style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                autoFocus
+                className="w-full pl-10 pr-3 py-3 bg-black/40 text-white rounded outline-none border border-gray-600 focus:border-blue-400 uppercase font-bold"
+                placeholder="CÓDIGO, NOME OU [NOME xQTD]"
+                value={searchProduct}
+                onChange={e => setSearchProduct(e.target.value)}
+              />
+            </div>
+            <button type="submit" style={{ backgroundColor: '#3b82f6', color: 'white', border: 'none', padding: '0 20px', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <Plus size={20} /> Inserir
+            </button>
+          </form>
+
+          {/* Search Results */}
+          {searchProduct.trim() !== '' && filteredProducts.length > 0 && (
+            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '150px', overflowY: 'auto' }}>
+              {filteredProducts.map(product => (
+                <div 
+                  key={product.id}
+                  onClick={() => addProductToCart(product, currentQty)}
+                  style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#1e293b', borderRadius: '6px', cursor: 'pointer', border: '1px solid transparent' }}
+                  onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                  onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
+                >
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <span style={{ color: '#38bdf8', fontWeight: 'bold', fontFamily: 'monospace' }}>[{product.code}]</span>
+                    <span style={{ fontWeight: 'bold' }}>{product.name} {product.brand ? \`(\${product.brand})\` : ''}</span>
+                  </div>
+                  <span style={{ color: '#4ade80', fontWeight: 'bold' }}>R$ {product.price.toFixed(2).replace('.', ',')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Cart Items */}
+        <div style={{ flex: 1, minHeight: '150px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #475569', overflow: 'hidden', display: 'flex', flexDirection: 'column', marginTop: '16px' }}>
+          <div style={{ display: 'flex', padding: '12px', backgroundColor: '#1e293b', borderBottom: '1px solid #475569', fontWeight: 'bold', color: '#94a3b8' }}>
+            <div style={{ width: '60px', textAlign: 'center' }}>Qtd</div>
+            <div style={{ flex: 1 }}>Item</div>
+            <div style={{ width: '100px', textAlign: 'right' }}>Unitário</div>
+            <div style={{ width: '100px', textAlign: 'right' }}>Total</div>
+            <div style={{ width: '40px' }}></div>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {items.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+                Nenhum item adicionado.
+              </div>
+            ) : items.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', padding: '12px', borderBottom: '1px solid #334155', alignItems: 'center' }}>
+                <div style={{ width: '60px', textAlign: 'center', fontWeight: 'bold', fontSize: '1.1rem' }}>{item.quantity}</div>
+                <div style={{ flex: 1, fontWeight: 'bold', textTransform: 'uppercase' }}>{item.name}</div>
+                <div style={{ width: '100px', textAlign: 'right' }}>
+                  <input 
+                    type="text"
+                    style={{ width: '80px', backgroundColor: 'transparent', border: '1px dashed #64748b', color: 'white', textAlign: 'right', outline: 'none' }}
+                    value={item.price > 0 ? item.price.toString().replace('.', ',') : ''}
+                    placeholder="0,00"
+                    onChange={e => updateItemPrice(idx, e.target.value.replace(/[^0-9,]/g, ''))}
+                  />
+                </div>
+                <div style={{ width: '100px', textAlign: 'right', color: '#4ade80', fontWeight: 'bold' }}>
+                  R$ {item.total.toFixed(2).replace('.', ',')}
+                </div>
+                <div style={{ width: '40px', textAlign: 'right' }}>
+                  <button onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e293b', borderRadius: '12px', border: '2px dashed #38bdf8', marginTop: '16px' }}>
+          <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#94a3b8' }}>TOTAL DO CUPOM:</span>
+          <span style={{ fontSize: '2rem', fontWeight: 900, color: '#38bdf8' }}>R$ {totalAmount.toFixed(2).replace('.', ',')}</span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+          <button 
+            onClick={onClose}
+            style={{ flex: 1, padding: '16px', backgroundColor: '#334155', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+          >
+            Cancelar
+          </button>
+          <button 
+            onClick={handlePrint}
+            style={{ flex: 2, padding: '16px', backgroundColor: '#38bdf8', color: '#000000', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+          >
+            <Printer size={24} /> Imprimir Avulso
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

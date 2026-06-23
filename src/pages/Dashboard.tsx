@@ -4,7 +4,7 @@ import { db } from '../db/db';
 import type { Profile } from '../db/db';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { TrendingUp, TrendingDown, DollarSign, Package } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Package, AlertCircle } from 'lucide-react';
 
 export const Dashboard = () => {
   const [viewProfile, setViewProfile] = React.useState<Profile | 'todos'>('todos');
@@ -25,7 +25,53 @@ export const Dashboard = () => {
     [viewProfile]
   );
 
-  if (!todayTransactions) return <div className="p-4 text-center">Carregando...</div>;
+  const [isTakingTooLong, setIsTakingTooLong] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!todayTransactions) {
+      const timer = setTimeout(() => setIsTakingTooLong(true), 3000);
+      return () => clearTimeout(timer);
+    } else {
+      setIsTakingTooLong(false);
+    }
+  }, [todayTransactions]);
+
+  if (!todayTransactions) {
+    return (
+      <div className="p-8 text-center flex flex-col items-center justify-center gap-4">
+        <div className="text-xl">Carregando dados...</div>
+        {isTakingTooLong && (
+          <div className="text-danger mt-4 bg-danger/10 p-6 rounded-lg max-w-lg text-left border border-danger/30">
+            <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+              <AlertCircle size={20} /> O banco de dados parece estar travado
+            </h3>
+            <p className="text-sm mb-4 text-muted-foreground">
+              O aplicativo está demorando muito para iniciar. Isso pode ocorrer devido a uma falha na atualização do banco de dados local.
+            </p>
+            <p className="text-sm mb-4 font-medium">
+              Se você possui um backup em nuvem e deseja apenas restaurá-lo, você pode forçar a limpeza do banco local para destravar o sistema.
+            </p>
+            <button 
+              className="bg-danger text-white px-4 py-2 rounded font-bold hover:bg-danger/80 w-full flex items-center justify-center gap-2"
+              onClick={async () => {
+                if (window.confirm('CUIDADO: Isso apagará TODOS os dados locais deste computador. Só prossiga se você tiver um backup na nuvem pronto para restaurar. Confirmar limpeza?')) {
+                  try {
+                    await db.delete();
+                    alert('Banco local limpo com sucesso! O aplicativo será recarregado.');
+                    window.location.reload();
+                  } catch (e: any) {
+                    alert('Erro ao limpar banco: ' + e.message);
+                  }
+                }
+              }}
+            >
+              Forçar Limpeza Local (Para Restaurar Backup)
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const sales = todayTransactions.filter(t => t.type === 'sale');
   const returns = todayTransactions.filter(t => t.type === 'return');

@@ -4,6 +4,7 @@ import type { Profile } from '../db/db';
 import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { RegisterLossModal } from '../components/RegisterLossModal';
+import { StandaloneReceiptModal } from '../components/StandaloneReceiptModal';
 
 export const Pos = () => {
   const [transactionProfile, setTransactionProfile] = useState<Profile>('chaveiro');
@@ -21,6 +22,7 @@ export const Pos = () => {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showLossModal, setShowLossModal] = useState(false);
+  const [showStandaloneModal, setShowStandaloneModal] = useState(false);
 
   // Pending Sales states
   const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
@@ -455,12 +457,12 @@ export const Pos = () => {
                         <td class="text-left" valign="top">
                           ${i.name}<br>
                           ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                            <span style="font-size: 10px; color: #555;">
+                            <span style="font-size: 10px; color: #000; font-weight: bold;">
                               De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
                               Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
                             </span>
                           ` : `
-                            <span style="font-size: 10px; color: #555;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
+                            <span style="font-size: 10px; color: #000; font-weight: bold;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
                           `}
                         </td>
                         <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
@@ -1233,6 +1235,13 @@ export const Pos = () => {
                 Limpar / Cancelar
               </button>
             </div>
+            <button
+              className="w-full py-3 mt-3 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
+              style={{ backgroundColor: '#0ea5e9', color: '#ffffff', border: 'none' }}
+              onClick={() => setShowStandaloneModal(true)}
+            >
+              CUPOM AVULSO (HISTÓRICO)
+            </button>
           </div>
         </div>
 
@@ -1443,6 +1452,11 @@ export const Pos = () => {
         isOpen={showLossModal}
         onClose={() => setShowLossModal(false)}
         activeProfile={transactionProfile}
+      />
+
+      <StandaloneReceiptModal 
+        isOpen={showStandaloneModal} 
+        onClose={() => setShowStandaloneModal(false)} 
       />
 
       {/* Pending Modal */}
