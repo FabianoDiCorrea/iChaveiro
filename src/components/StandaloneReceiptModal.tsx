@@ -133,12 +133,12 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
                     <td class="text-left" valign="top">
                       ${i.name}<br>
                       ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                        <div style="font-size: 10px; color: #000;">
-                          <b>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</b>
+                        <div style="font-size: 12px; color: #000;">
+                          <strong>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</strong>
                         </div>
                       ` : `
-                        <div style="font-size: 10px; color: #000;"><b>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</b></div>
+                        <div style="font-size: 12px; color: #000;"><strong>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</strong></div>
                       `}
                     </td>
                     <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>

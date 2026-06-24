@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, type ServiceType, type PaymentMethod, type TransactionItem } from '../db/db';
 import type { Profile } from '../db/db';
-import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag } from 'lucide-react';
+import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag, Package, Printer } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { RegisterLossModal } from '../components/RegisterLossModal';
 import { runAutoBackup } from '../db/sync';
 import { StandaloneReceiptModal } from '../components/StandaloneReceiptModal';
+import { StorageBoxModal } from '../components/StorageBoxModal';
+import { differenceInDays } from 'date-fns';
 
 export const Pos = () => {
   const [transactionProfile, setTransactionProfile] = useState<Profile>(() => {
@@ -30,6 +32,7 @@ export const Pos = () => {
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showLossModal, setShowLossModal] = useState(false);
   const [showStandaloneModal, setShowStandaloneModal] = useState(false);
+  const [showStorageBoxModal, setShowStorageBoxModal] = useState(false);
 
   // Pending Sales states
   const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
@@ -115,10 +118,15 @@ export const Pos = () => {
     [transactionProfile]
   );
 
-  const pendingSales = useLiveQuery(
+  const pendingSalesQuery = useLiveQuery(
     () => db.pendingSales.where('profile').equals(transactionProfile).toArray(),
     [transactionProfile]
-  ) || [];
+  );
+  const pendingSales = pendingSalesQuery || [];
+  
+  const todayDate = new Date();
+  const recentPendingSales = pendingSales.filter(s => differenceInDays(todayDate, s.date) <= 7);
+  const archivedPendingSales = pendingSales.filter(s => differenceInDays(todayDate, s.date) > 7);
 
   const parseSearchInput = (input: string) => {
     const match = input.match(/^(.+?)(?:[xX*]\s*(\d+))?$/);
@@ -355,6 +363,35 @@ export const Pos = () => {
     }
   };
 
+  const handleRescueStorageBox = (sale: any) => {
+    setItems(sale.items);
+    setActivePendingSaleId(sale.id!);
+    setClientCode(sale.clientName);
+    setShowStorageBoxModal(false);
+  };
+
+  const handleDeleteStorageBox = async (sale: any) => {
+    if (window.confirm('Deseja DEVOLVER os itens deste pedido ao ESTOQUE? (Clique OK para devolver e apagar, ou CANCELAR para apagar sem devolver nada).')) {
+      try {
+        await db.transaction('rw', db.pendingSales, db.products, async () => {
+          for (const item of sale.items) {
+            if (item.productId) {
+              const product = await db.products.get(item.productId);
+              if (product && product.hasStock) {
+                await db.products.update(item.productId, { stock: product.stock + item.quantity });
+              }
+            }
+          }
+          await db.pendingSales.delete(sale.id!);
+        });
+      } catch (err) {
+        console.error("Erro ao devolver e deletar", err);
+      }
+    } else {
+      await db.pendingSales.delete(sale.id!);
+    }
+  };
+
   const completeCheckout = async (shouldPrint: boolean) => {
     try {
       await db.transaction('rw', db.transactions, db.products, db.pendingSales, async () => {
@@ -467,12 +504,12 @@ export const Pos = () => {
                         <td class="text-left" valign="top">
                           ${i.name}<br>
                           ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                            <div style="font-size: 10px; color: #000;">
-                              <b>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</b>
+                            <div style="font-size: 12px; color: #000;">
+                              <strong>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</strong>
                             </div>
                           ` : `
-                            <div style="font-size: 10px; color: #000;"><b>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</b></div>
+                            <div style="font-size: 12px; color: #000;"><strong>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</strong></div>
                           `}
                         </td>
                         <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
@@ -972,6 +1009,52 @@ export const Pos = () => {
             Registrar Despesa
           </button>
           <button
+            onClick={() => setShowStorageBoxModal(true)}
+            style={{
+              backgroundColor: '#a855f7',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+            onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
+          >
+            <Package size={18} /> {archivedPendingSales.length > 0 && <span style={{ backgroundColor: 'white', color: '#a855f7', borderRadius: '50%', padding: '2px 6px', fontSize: '10px' }}>{archivedPendingSales.length}</span>}
+          </button>
+          <button
+            onClick={() => setShowStandaloneModal(true)}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 16px',
+              fontSize: '0.875rem',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+            onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
+          >
+            <Printer size={18} /> Cupom Avulso
+          </button>
+          <button
             onClick={() => setShowLossModal(true)}
             style={{
               backgroundColor: '#f97316',
@@ -1284,13 +1367,6 @@ export const Pos = () => {
                 Limpar / Cancelar
               </button>
             </div>
-            <button
-              className="w-full py-3 mt-3 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
-              style={{ backgroundColor: '#0ea5e9', color: '#ffffff', border: 'none' }}
-              onClick={() => setShowStandaloneModal(true)}
-            >
-              CUPOM AVULSO (HISTÓRICO)
-            </button>
           </div>
         </div>
 
@@ -1446,13 +1522,13 @@ export const Pos = () => {
           </div>
 
           {/* Pending Sales List */}
-          {pendingSales.length > 0 && (
+          {recentPendingSales.length > 0 && (
             <div style={{ marginTop: '16px', backgroundColor: '#1e293b', borderRadius: '12px', padding: '16px', border: '2px solid #eab308', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <h3 style={{ color: '#eab308', fontSize: '1rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                ⏳ Vendas Pendentes (Retiradas)
+                ⏳ Pendentes para Retirada ({recentPendingSales.length})
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', paddingRight: '4px' }}>
-                {pendingSales.slice().sort((a, b) => a.date.getTime() - b.date.getTime()).map(sale => (
+                {recentPendingSales.slice().sort((a, b) => a.date.getTime() - b.date.getTime()).map(sale => (
                   <div 
                     key={sale.id}
                     style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}
@@ -1501,6 +1577,14 @@ export const Pos = () => {
         isOpen={showLossModal}
         onClose={() => setShowLossModal(false)}
         activeProfile={transactionProfile}
+      />
+
+      <StorageBoxModal
+        isOpen={showStorageBoxModal}
+        onClose={() => setShowStorageBoxModal(false)}
+        archivedSales={archivedPendingSales}
+        onRescue={handleRescueStorageBox}
+        onDelete={handleDeleteStorageBox}
       />
 
       <StandaloneReceiptModal 
