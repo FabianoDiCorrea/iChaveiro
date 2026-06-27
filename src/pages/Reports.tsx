@@ -8,7 +8,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export const Reports = () => {
-  const [viewProfile, setViewProfile] = React.useState<Profile | 'todos'>('todos');
+  const [viewProfile, setViewProfile] = React.useState<Profile | 'todos'>('chaveiro');
   const [activeTab, setActiveTab] = useState<'finance' | 'losses'>('finance');
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
   const [customStart, setCustomStart] = useState('');
@@ -73,8 +73,8 @@ export const Reports = () => {
     const returns = txForProfile.filter(t => t.type === 'return');
     const expenses = txForProfile.filter(t => t.type === 'expense');
 
-    const serviceTotals = { key: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
-    const serviceQtys  = { key: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
+    const serviceTotals = { key: 0, plier_sharp: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
+    const serviceQtys  = { key: 0, plier_sharp: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
     let totalSales = 0;
     let totalCosts = 0;
     let totalDiscounts = 0;
@@ -105,7 +105,14 @@ export const Reports = () => {
       }
 
       t.items.forEach(item => {
-        const svc = item.service;
+        let svc = item.service;
+        if (svc === 'plier') {
+          const nameLower = item.name.toLowerCase();
+          if (nameLower.includes('afiação') || nameLower.includes('afiacao') || nameLower.includes('afiaçao') || nameLower.includes('afiador') || t.profile === 'chaveiro' || item.productId === 1) {
+            svc = 'plier_sharp' as any;
+          }
+        }
+        
         if (svc in serviceTotals) {
           serviceTotals[svc as keyof typeof serviceTotals] += item.total;
           serviceQtys[svc as keyof typeof serviceQtys] += item.quantity;
@@ -173,7 +180,8 @@ export const Reports = () => {
           ${serviceQtys.key > 0 ? `<tr><td>Chaves (${serviceQtys.key} un):</td><td class="text-right font-mono">R$ ${serviceTotals.key.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           ${serviceQtys.spring > 0 ? `<tr><td>Molinhas (${serviceQtys.spring} un):</td><td class="text-right font-mono">R$ ${serviceTotals.spring.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           ${serviceQtys.screw > 0 ? `<tr><td>Parafusos (${serviceQtys.screw} un):</td><td class="text-right font-mono">R$ ${serviceTotals.screw.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.plier > 0 ? `<tr><td>Alicates (${serviceQtys.plier}):</td><td class="text-right font-mono">R$ ${serviceTotals.plier.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          ${serviceQtys.plier_sharp > 0 ? `<tr><td>Afiações Alicate (${serviceQtys.plier_sharp}):</td><td class="text-right font-mono">R$ ${serviceTotals.plier_sharp.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          ${serviceQtys.plier > 0 ? `<tr><td>Venda Alicates (${serviceQtys.plier}):</td><td class="text-right font-mono">R$ ${serviceTotals.plier.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           ${serviceQtys.scissor > 0 ? `<tr><td>Tesouras (${serviceQtys.scissor}):</td><td class="text-right font-mono">R$ ${serviceTotals.scissor.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           ${serviceQtys.knife > 0 ? `<tr><td>Facas (${serviceQtys.knife}):</td><td class="text-right font-mono">R$ ${serviceTotals.knife.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           ${serviceQtys.other > 0 ? `<tr><td>Outros (${serviceQtys.other}):</td><td class="text-right font-mono">R$ ${serviceTotals.other.toFixed(2).replace('.', ',')}</td></tr>` : ''}
@@ -213,7 +221,7 @@ export const Reports = () => {
         
         ${sortedTransactions.map((t, idx) => {
           let typeStr = '';
-          if (t.type === 'sale') typeStr = 'Venda';
+          if (t.type === 'sale') typeStr = t.profile === 'chaveiro' ? 'Serviço' : 'Venda';
           else if (t.type === 'return') typeStr = 'Devolução';
           else if (t.type === 'expense') typeStr = 'Despesa';
 
@@ -286,7 +294,7 @@ export const Reports = () => {
     const expenses = txForProfile.filter(t => t.type === 'expense');
 
     // Calculate totals by service
-    const serviceTotals = { key: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
+    const serviceTotals = { key: 0, plier_sharp: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
     let totalSales = 0;
     let totalCosts = 0;
     let totalDiscounts = 0;
@@ -317,7 +325,13 @@ export const Reports = () => {
       }
 
       t.items.forEach(item => {
-        const svc = item.service;
+        let svc = item.service;
+        if (svc === 'plier') {
+          const nameLower = item.name.toLowerCase();
+          if (nameLower.includes('afiação') || nameLower.includes('afiacao') || nameLower.includes('afiaçao') || nameLower.includes('afiador') || t.profile === 'chaveiro' || item.productId === 1) {
+            svc = 'plier_sharp' as any;
+          }
+        }
         if (svc in serviceTotals) {
           serviceTotals[svc as keyof typeof serviceTotals] += item.total;
         } else {
@@ -336,7 +350,8 @@ export const Reports = () => {
       ['Chaves', `R$ ${serviceTotals.key.toFixed(2).replace('.', ',')}`],
       ['Molinhas de Alicate', `R$ ${serviceTotals.spring.toFixed(2).replace('.', ',')}`],
       ['Parafusos de Alicate', `R$ ${serviceTotals.screw.toFixed(2).replace('.', ',')}`],
-      ['Alicates', `R$ ${serviceTotals.plier.toFixed(2).replace('.', ',')}`],
+      ['Afiações Alicate', `R$ ${serviceTotals.plier_sharp.toFixed(2).replace('.', ',')}`],
+      ['Venda Alicates', `R$ ${serviceTotals.plier.toFixed(2).replace('.', ',')}`],
       ['Tesouras', `R$ ${serviceTotals.scissor.toFixed(2).replace('.', ',')}`],
       ['Facas', `R$ ${serviceTotals.knife.toFixed(2).replace('.', ',')}`],
       ['Outros', `R$ ${serviceTotals.other.toFixed(2).replace('.', ',')}`],
@@ -369,7 +384,7 @@ export const Reports = () => {
     if (isDetailed) {
       const transactionsData = txForProfile.sort((a, b) => b.date.getTime() - a.date.getTime()).map(t => {
         let typeStr = '';
-        if (t.type === 'sale') typeStr = 'Venda';
+        if (t.type === 'sale') typeStr = t.profile === 'chaveiro' ? 'Serviço' : 'Venda';
         else if (t.type === 'return') typeStr = 'Devolucao';
         else if (t.type === 'expense') typeStr = 'Despesa';
 
@@ -416,8 +431,8 @@ export const Reports = () => {
   const returns = transactions.filter(t => t.type === 'return');
   const expenses = transactions.filter(t => t.type === 'expense');
   
-  const serviceTotals = { key: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
-  const serviceQtys   = { key: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
+  const serviceTotals = { key: 0, plier_sharp: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
+  const serviceQtys   = { key: 0, plier_sharp: 0, plier: 0, scissor: 0, knife: 0, spring: 0, screw: 0, other: 0 };
   let totalGrossSales = 0;
   let totalCosts = 0;
   let totalDiscounts = 0;
@@ -448,7 +463,13 @@ export const Reports = () => {
     }
 
     t.items.forEach(item => {
-      const svc = item.service;
+      let svc = item.service;
+      if (svc === 'plier') {
+        const nameLower = item.name.toLowerCase();
+        if (nameLower.includes('afiação') || nameLower.includes('afiacao') || nameLower.includes('afiaçao') || nameLower.includes('afiador') || t.profile === 'chaveiro' || item.productId === 1) {
+          svc = 'plier_sharp' as any;
+        }
+      }
       if (svc in serviceTotals) {
         serviceTotals[svc as keyof typeof serviceTotals] += item.total;
         serviceQtys[svc as keyof typeof serviceQtys] += item.quantity;
@@ -569,12 +590,13 @@ export const Reports = () => {
         {/* Column 1: Items List */}
         <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
           <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Serviços e Itens</h3>
-          <div className="flex flex-col gap-2 overflow-y-auto" style={{ flex: 1, maxHeight: '250px', paddingRight: '4px' }}>
+          <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar" style={{ flex: 1, maxHeight: '250px', paddingRight: '8px' }}>
             {[
               { name: 'Chaves', qty: serviceQtys.key, val: serviceTotals.key },
               { name: 'Molinhas', qty: serviceQtys.spring, val: serviceTotals.spring },
               { name: 'Parafusos', qty: serviceQtys.screw, val: serviceTotals.screw },
-              { name: 'Alicates', qty: serviceQtys.plier, val: serviceTotals.plier },
+              { name: 'Afiações Alicate', qty: serviceQtys.plier_sharp, val: serviceTotals.plier_sharp },
+              { name: 'Venda Alicates', qty: serviceQtys.plier, val: serviceTotals.plier },
               { name: 'Tesouras', qty: serviceQtys.scissor, val: serviceTotals.scissor },
               { name: 'Facas', qty: serviceQtys.knife, val: serviceTotals.knife },
               { name: 'Outros', qty: serviceQtys.other, val: serviceTotals.other },
@@ -684,7 +706,16 @@ export const Reports = () => {
               {transactions.sort((a, b) => b.date.getTime() - a.date.getTime()).map((t, i) => {
                 let typeBadge = null;
                 if (t.type === 'sale') {
-                  typeBadge = <span className="bg-success/20 text-success border border-success/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Venda</span>;
+                  const hasPhysicalProduct = t.items.some(item => {
+                    if (item.isService !== undefined) return !item.isService;
+                    if (item.service === 'key') return false;
+                    if (item.service === 'plier' && (item.productId === 1 || item.name.toLowerCase().includes('afia'))) return false;
+                    if (item.service === 'other' && item.name.toLowerCase().includes('serviço')) return false;
+                    return true; 
+                  });
+                  const displayType = t.profile === 'chaveiro' ? 'Serviço' : (hasPhysicalProduct ? 'Venda' : 'Serviço');
+                  
+                  typeBadge = <span className="bg-success/20 text-success border border-success/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{displayType}</span>;
                 } else if (t.type === 'return') {
                   typeBadge = <span className="bg-danger/20 text-danger border border-danger/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Devolução</span>;
                 } else if (t.type === 'expense') {

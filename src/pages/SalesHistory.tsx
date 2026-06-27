@@ -8,7 +8,7 @@ export const SalesHistory = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [viewProfile, setViewProfile] = useState<Profile | 'todos'>('todos');
+  const [viewProfile, setViewProfile] = useState<Profile | 'todos'>('chaveiro');
   const [searchTerm, setSearchTerm] = useState('');
   
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -127,7 +127,8 @@ export const SalesHistory = () => {
       <head>
         <title>${typeTitle}</title>
         <style>
-          body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 10px; color: black; }
+          @page { margin: 10mm 0; }
+          body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
           .bold { font-weight: bold; }
@@ -144,7 +145,7 @@ export const SalesHistory = () => {
         <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
         <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
         <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
-        ${t.clientName ? `<div class="divider"></div><div class="bold">Cliente: ${t.clientName}</div>` : ''}
+        ${t.clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${t.clientCode}</div>` : ''}
         <div class="divider"></div>
         <table>
           <thead>
@@ -193,6 +194,7 @@ export const SalesHistory = () => {
     setTimeout(() => {
       printWindow.focus();
       printWindow.print();
+      printWindow.close();
     }, 250);
   };
 
@@ -335,7 +337,16 @@ export const SalesHistory = () => {
                         isExpense ? 'bg-warning/20 text-warning' : 
                         'bg-danger/20 text-danger'
                       }`}>
-                        {isSale ? 'Venda' : isExpense ? 'Despesa' : 'Devolução'}
+                        {isSale ? (() => {
+                          const hasPhysicalProduct = t.items.some(item => {
+                            if (item.isService !== undefined) return !item.isService;
+                            if (item.service === 'key') return false;
+                            if (item.service === 'plier' && (item.productId === 1 || item.name.toLowerCase().includes('afia'))) return false;
+                            if (item.service === 'other' && item.name.toLowerCase().includes('serviço')) return false;
+                            return true; 
+                          });
+                          return t.profile === 'chaveiro' ? 'Serviço' : (hasPhysicalProduct ? 'Venda' : 'Serviço');
+                        })() : isExpense ? 'Despesa' : 'Devolução'}
                       </span>
                     </td>
                     <td className="text-sm" style={{ padding: '12px 8px' }}>

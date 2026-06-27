@@ -83,6 +83,10 @@ export const Sidebar = () => {
           <History size={20} />
           <span>Histórico de Vendas</span>
         </NavLink>
+        <NavLink to="/fechamentos" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <FileText size={20} />
+          <span>Fechamentos</span>
+        </NavLink>
         <NavLink to="/devolucoes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Undo2 size={20} />
           <span>Devoluções</span>

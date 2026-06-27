@@ -15,7 +15,7 @@ export const Inventory = () => {
 
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [historyPeriod, setHistoryPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
-  const [historyProfile, setHistoryProfile] = useState<Profile | 'todos'>('todos');
+  const [historyProfile, setHistoryProfile] = useState<Profile | 'todos'>('chaveiro');
   const [historyCustomStart, setHistoryCustomStart] = useState('');
   const [historyCustomEnd, setHistoryCustomEnd] = useState('');
 
@@ -34,6 +34,7 @@ export const Inventory = () => {
     serviceType: 'key' as ServiceType,
     customCategory: '',
     hasStock: true,
+    isService: false,
   });
 
   const [salesPeriod, setSalesPeriod] = useState<'today' | 'week' | 'month' | 'year'>('month');
@@ -164,6 +165,7 @@ export const Inventory = () => {
         serviceType: product.serviceType,
         customCategory: product.customCategory || '',
         hasStock: product.hasStock ?? hasInventory(product.serviceType),
+        isService: product.isService ?? false,
       });
     } else {
       setEditingProduct(null);
@@ -171,7 +173,6 @@ export const Inventory = () => {
         profile: 'chaveiro', 
         code: '',
         brand: '',
-        model: '',
         name: '', 
         price: '', 
         costPrice: '0',
@@ -180,6 +181,7 @@ export const Inventory = () => {
         serviceType: 'key',
         customCategory: '',
         hasStock: true,
+        isService: false,
       });
     }
     setIsModalOpen(true);
@@ -202,6 +204,7 @@ export const Inventory = () => {
       serviceType: formData.serviceType,
       customCategory: formData.serviceType === 'custom' ? formData.customCategory : undefined,
       hasStock: formData.hasStock,
+      isService: formData.isService,
     };
 
     try {
@@ -280,9 +283,8 @@ export const Inventory = () => {
       else if (percentage <= 0.3) bgColor = 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50';
       else bgColor = 'bg-success/20 text-success border border-success/30';
     } else {
-      // Fallback
-      if (product.stock <= 5) bgColor = 'bg-danger/20 text-danger border border-danger/50';
-      else if (product.stock <= 20) bgColor = 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50';
+      // Sem mínimo definido, fica sempre verde
+      bgColor = 'bg-success/20 text-success border border-success/30';
     }
 
     return (
@@ -386,25 +388,22 @@ export const Inventory = () => {
                 let suggestedLabel = '';
                 let suggestedBadgeClass = '';
 
-                if (hasInventoryByProduct(product)) {
-                  let monthlySalesRate = 0;
-                  if (salesPeriod === 'today') monthlySalesRate = stats?.salesToday * 30 || 0;
-                  else if (salesPeriod === 'week') monthlySalesRate = stats?.sales7d * 4 || 0;
-                  else if (salesPeriod === 'month') monthlySalesRate = stats?.sales30d || 0;
-                  else if (salesPeriod === 'year') monthlySalesRate = stats?.sales365d / 12 || 0;
+                let shouldShowSuggestion = false;
 
-                  const targetStock = product.idealStock || Math.max(30, Math.ceil(monthlySalesRate * 1.5));
+                if (hasInventoryByProduct(product) && product.idealStock && product.idealStock > 0) {
+                  const targetStock = product.idealStock;
                   suggestedQty = Math.max(0, targetStock - product.stock);
 
                   if (suggestedQty > 0) {
                     suggestedLabel = `+${suggestedQty}`;
-                    suggestedBadgeClass = suggestedQty >= 50 
+                    suggestedBadgeClass = suggestedQty >= targetStock * 0.5
                       ? 'bg-danger/25 text-danger border border-danger/40 animate-pulse' 
                       : 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/40';
                   } else {
                     suggestedLabel = 'OK';
                     suggestedBadgeClass = 'bg-success/20 text-success border border-success/40';
                   }
+                  shouldShowSuggestion = true;
                 }
 
                 return (
@@ -455,11 +454,7 @@ export const Inventory = () => {
 
                     {/* Purchase suggestion - compact */}
                     <td className="py-2 px-2 text-center">
-                      {hasInventoryByProduct(product) && suggestedQty > 0 ? (
-                        <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${suggestedBadgeClass}`}>
-                          {suggestedLabel}
-                        </span>
-                      ) : hasInventoryByProduct(product) ? (
+                      {shouldShowSuggestion ? (
                         <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${suggestedBadgeClass}`}>
                           {suggestedLabel}
                         </span>
@@ -626,6 +621,33 @@ export const Inventory = () => {
                   />
                 </div>
               )}
+
+              <div>
+                <label className="label">Tipo de Cadastro</label>
+                <div className="flex gap-4 p-2 bg-black/20 rounded-lg border border-[var(--border)]">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="isService" 
+                      className="accent-primary" 
+                      checked={formData.isService === false} 
+                      onChange={() => setFormData({ ...formData, isService: false, hasStock: true })}
+                    />
+                    <span className="font-bold text-sm">Produto (Venda)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="isService" 
+                      className="accent-primary" 
+                      checked={formData.isService === true} 
+                      onChange={() => setFormData({ ...formData, isService: true, hasStock: false })}
+                    />
+                    <span className="font-bold text-sm">Prestação de Serviço</span>
+                  </label>
+                </div>
+                <p className="text-xs text-muted mt-1 ml-1">Isto define se a transação será marcada como "VENDA" ou "SERVIÇO" nos relatórios.</p>
+              </div>
 
               {/* Toggle: has inventory tracking */}
               <label className="flex items-center gap-3 cursor-pointer bg-black/20 p-3 rounded-lg border border-[var(--border)]">
@@ -830,11 +852,8 @@ export const Inventory = () => {
           .filter(t => t.type === 'sale' && t.date >= startD && t.date <= endD)
           .filter(t => historyProfile === 'todos' || t.profile === historyProfile)
           .flatMap(t => {
-            const item = t.items.find(i => i.productId === historyProduct.id || (i.name === historyProduct.name && (!i.productId || !historyProduct.id)));
-            if (item) {
-              return [{ date: t.date, profile: t.profile, quantity: item.quantity, total: item.total, txId: t.id }];
-            }
-            return [];
+            const matchedItems = t.items.filter(i => i.productId === historyProduct.id || (i.name === historyProduct.name && (!i.productId || !historyProduct.id)));
+            return matchedItems.map(item => ({ date: t.date, profile: t.profile, quantity: item.quantity, total: item.total, txId: t.id }));
           })
           .sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -842,18 +861,18 @@ export const Inventory = () => {
         const totalRevenue = historyData.reduce((sum, item) => sum + item.total, 0);
 
         return createPortal(
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' }}>
-            <div className="glass-panel p-6 w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in">
-              <div className="flex justify-between items-center mb-6">
+          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, overflowY: 'auto', padding: '5vh 1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)', display: 'block' }}>
+            <div className="glass-panel p-6 w-full max-w-4xl animate-fade-in mx-auto" style={{ margin: '0 auto', display: 'flex', flexDirection: 'column' }}>
+              <div className="flex justify-between items-center mb-6 shrink-0">
                 <div>
                   <h2 className="text-xl font-bold">Histórico do Item: <span className="text-primary">{historyProduct.name}</span></h2>
                   <p className="text-sm text-muted">Acompanhe quem vendeu, quando, e as quantidades totais.</p>
                 </div>
-                <button onClick={() => setHistoryProduct(null)} className="p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"><X size={24} /></button>
+                <button onClick={() => setHistoryProduct(null)} className="btn btn-outline cursor-pointer flex items-center gap-2"><X size={20} /> Fechar/Voltar</button>
               </div>
               
               {/* Filters */}
-              <div className="flex flex-wrap gap-4 mb-6">
+              <div className="flex flex-wrap gap-4 mb-6 shrink-0">
                 <div>
                   <label className="label">Período</label>
                   <select className="input min-w-[150px]" value={historyPeriod} onChange={e => setHistoryPeriod(e.target.value as any)}>
@@ -887,7 +906,7 @@ export const Inventory = () => {
               </div>
 
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-6 shrink-0">
                 <div className="bg-black/20 p-4 rounded-xl border border-[var(--border)] flex items-center justify-between">
                   <div>
                     <div className="text-sm text-muted mb-1">Quantidade Total Vendida</div>
@@ -905,7 +924,7 @@ export const Inventory = () => {
               </div>
               
               {/* Table List */}
-              <div className="flex-1 overflow-y-auto border border-[var(--border)] rounded-lg">
+              <div className="border border-[var(--border)] rounded-lg">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-[var(--bg-surface)] sticky top-0">
                     <tr className="text-muted text-sm border-b border-[var(--border)]">

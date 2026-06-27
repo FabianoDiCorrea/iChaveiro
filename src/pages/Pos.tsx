@@ -29,6 +29,7 @@ export const Pos = () => {
   const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printTwoCopies, setPrintTwoCopies] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showLossModal, setShowLossModal] = useState(false);
   const [showStandaloneModal, setShowStandaloneModal] = useState(false);
@@ -173,7 +174,8 @@ export const Pos = () => {
       originalPrice: product.price,
       cost: product.costPrice || 0,
       total: product.price * qty,
-      productId: product.id
+      productId: product.id,
+      isService: product.isService
     } as any]);
 
     setSearchProduct('');
@@ -392,7 +394,7 @@ export const Pos = () => {
     }
   };
 
-  const completeCheckout = async (shouldPrint: boolean) => {
+  const completeCheckout = async (shouldPrint: boolean, twoCopies: boolean = false) => {
     try {
       await db.transaction('rw', db.transactions, db.products, db.pendingSales, async () => {
         // Decrement stock for products (Only for keys, springs and screws)
@@ -468,7 +470,8 @@ export const Pos = () => {
             <head>
               <title>Cupom Não Fiscal</title>
               <style>
-                body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 10px; color: black; }
+                @page { margin: 10mm 0; }
+                body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
                 .text-center { text-align: center; }
                 .text-right { text-align: right; }
                 .bold { font-weight: bold; }
@@ -542,6 +545,11 @@ export const Pos = () => {
           printWindow.focus();
           setTimeout(() => {
             printWindow.print();
+            if (twoCopies) {
+              if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
+                printWindow.print();
+              }
+            }
             printWindow.close();
           }, 250);
         }
@@ -577,7 +585,8 @@ export const Pos = () => {
         <head>
           <title>Fechamento de Caixa</title>
           <style>
-            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 10px; color: black; }
+            @page { margin: 10mm 0; }
+            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
@@ -1817,11 +1826,21 @@ export const Pos = () => {
               Deseja imprimir o cupom não-fiscal desta venda?
             </p>
 
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#fff', fontSize: '1.2rem', cursor: 'pointer', marginBottom: '10px' }}>
+              <input 
+                type="checkbox" 
+                checked={printTwoCopies} 
+                onChange={(e) => setPrintTwoCopies(e.target.checked)} 
+                style={{ width: '24px', height: '24px', accentColor: '#3b82f6', cursor: 'pointer' }}
+              />
+              <span style={{ fontWeight: 'bold' }}>2 VIAS? (Cliente e Chaveiro)</span>
+            </label>
+
             <div style={{ display: 'flex', gap: '16px' }}>
               <button
                 onClick={() => {
                   setShowPrintModal(false);
-                  completeCheckout(false);
+                  completeCheckout(false, printTwoCopies);
                 }}
                 style={{ 
                   flex: 1, 
@@ -1845,7 +1864,7 @@ export const Pos = () => {
               <button
                 onClick={() => {
                   setShowPrintModal(false);
-                  completeCheckout(true);
+                  completeCheckout(true, printTwoCopies);
                 }}
                 style={{ 
                   flex: 1, 

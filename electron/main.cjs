@@ -3,6 +3,9 @@ const path = require('path');
 const url = require('url');
 const { autoUpdater } = require('electron-updater');
 
+// Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
+app.commandLine.appendSwitch('kiosk-printing');
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,

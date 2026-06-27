@@ -97,7 +97,8 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
         <head>
           <title>Cupom Não Fiscal</title>
           <style>
-            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 10px; color: black; }
+            @page { margin: 10mm 0; }
+            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }

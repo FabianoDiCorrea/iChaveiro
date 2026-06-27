@@ -24,6 +24,7 @@ export interface TransactionItem {
   cost: number;
   total: number;
   productId?: number;
+  isService?: boolean;
 }
 
 export interface PendingSale {
@@ -77,6 +78,7 @@ export interface Product {
   costPrice: number;
   stock: number;
   hasStock: boolean;     // whether to track inventory for this item
+  isService?: boolean;   // explicitly mark as Service (true) or Venda (false)
   serviceType: ServiceType;
   customCategory?: string; // label when serviceType === 'custom'
   code?: string;
