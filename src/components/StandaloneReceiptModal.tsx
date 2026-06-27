@@ -78,9 +78,7 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
   const handlePrint = () => {
     if (items.length === 0) return alert('Adicione itens ao cupom avulso.');
 
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      const dateObj = new Date(receiptDate);
+    const dateObj = new Date(receiptDate);
       const dateStr = dateObj.toLocaleString('pt-BR');
       
       const originalSubtotal = items.reduce((sum, i) => {
@@ -158,21 +156,34 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           </table>
           <div class="divider"></div>
           <div class="text-center">Obrigado pela preferencia!</div>
+          <br><br><br>
         </body>
         </html>
       `;
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-        
-        // Clear and close modal after print
-        setItems([]);
-        setClientName('');
-        onClose();
-      }, 250);
+      const printIframe = document.createElement('iframe');
+      printIframe.style.position = 'absolute';
+      printIframe.style.width = '0px';
+      printIframe.style.height = '0px';
+      printIframe.style.border = 'none';
+      document.body.appendChild(printIframe);
+      
+      const doc = printIframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+        setTimeout(() => {
+          printIframe.contentWindow?.focus();
+          printIframe.contentWindow?.print();
+          setTimeout(() => {
+            document.body.removeChild(printIframe);
+          }, 1000);
+          
+          setItems([]);
+          setClientName('');
+          onClose();
+        }, 250);
+      }
     }
   };
 

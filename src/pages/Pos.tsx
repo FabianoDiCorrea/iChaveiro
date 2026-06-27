@@ -453,8 +453,6 @@ export const Pos = () => {
 
       // Imprimir Cupom
       if (shouldPrint) {
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
           const dateStr = new Date().toLocaleString('pt-BR');
           const originalSubtotal = items.reduce((sum, i) => {
             const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
@@ -537,27 +535,40 @@ export const Pos = () => {
               </table>
               <div class="divider"></div>
               <div class="text-center">Obrigado pela preferencia!</div>
+              <br><br><br>
             </body>
             </html>
           `;
-          printWindow.document.write(html);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            if (twoCopies) {
-              if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-                printWindow.print();
+          
+          const printIframe = document.createElement('iframe');
+          printIframe.style.position = 'absolute';
+          printIframe.style.width = '0px';
+          printIframe.style.height = '0px';
+          printIframe.style.border = 'none';
+          document.body.appendChild(printIframe);
+          
+          const doc = printIframe.contentWindow?.document;
+          if (doc) {
+            doc.open();
+            doc.write(html);
+            doc.close();
+            setTimeout(() => {
+              printIframe.contentWindow?.focus();
+              printIframe.contentWindow?.print();
+              if (twoCopies) {
+                if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
+                  printIframe.contentWindow?.print();
+                }
               }
-            }
-            printWindow.close();
-          }, 250);
-        }
+              setTimeout(() => { document.body.removeChild(printIframe); }, 1000);
+            }, 250);
+          }
       }
 
       setItems([]);
       setClientCode('');
       setDiscount('');
+      setPrintTwoCopies(false);
       setCashReceived('');
       setCustomUnitPrice('');
       setSplitPayments([]);
@@ -570,8 +581,6 @@ export const Pos = () => {
   };
 
   const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number }[] = []) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
       const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
       const closedStr = new Date().toLocaleString('pt-BR');
       const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0);
@@ -629,18 +638,30 @@ export const Pos = () => {
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
           <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
+          <br><br><br>
         </body>
         </html>
       `;
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    }
-  };
+      
+      const printIframe = document.createElement('iframe');
+      printIframe.style.position = 'absolute';
+      printIframe.style.width = '0px';
+      printIframe.style.height = '0px';
+      printIframe.style.border = 'none';
+      document.body.appendChild(printIframe);
+      
+      const doc = printIframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+        setTimeout(() => {
+          printIframe.contentWindow?.focus();
+          printIframe.contentWindow?.print();
+          setTimeout(() => { document.body.removeChild(printIframe); }, 1000);
+        }, 250);
+      }
+    };
 
   const handleCloseRegister = async () => {
     if (!activeSession) return;
@@ -877,7 +898,6 @@ export const Pos = () => {
                 initialCash: val,
                 status: 'open'
               });
-              setOpenRegisterCash('50,00');
             }}
             style={{
               backgroundColor: '#22c55e',
