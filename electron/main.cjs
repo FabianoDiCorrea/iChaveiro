@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const url = require('url');
 const { autoUpdater } = require('electron-updater');
@@ -60,6 +60,17 @@ app.whenReady().then(() => {
 
   autoUpdater.on('error', (err) => {
     console.error('Erro no autoUpdater:', err);
+  });
+});
+
+ipcMain.on('print-html', (event, html) => {
+  const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.print({ silent: true, margins: { marginType: 'none' } }, (success, failureReason) => {
+      if (!success) console.error('Erro na impressão:', failureReason);
+      win.close();
+    });
   });
 });
 
