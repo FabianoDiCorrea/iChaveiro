@@ -542,7 +542,7 @@ export const Pos = () => {
           // Add extra margin for thermal printers
           html += '<div style="height: 50px;"></div>';
 
-          const { ipcRenderer } = window.require('electron');
+          const { ipcRenderer } = (window as any).require('electron');
           ipcRenderer.send('print-html', html);
           
           if (twoCopies) {
@@ -632,7 +632,7 @@ export const Pos = () => {
       // Add extra margin for thermal printers
       html += '<div style="height: 50px;"></div>';
 
-      const { ipcRenderer } = window.require('electron');
+      const { ipcRenderer } = (window as any).require('electron');
       ipcRenderer.send('print-html', html);
     };
 
