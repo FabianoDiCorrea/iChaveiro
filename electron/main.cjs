@@ -63,16 +63,6 @@ app.whenReady().then(() => {
   });
 });
 
-ipcMain.on('print-html', (event, html) => {
-  const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
-  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.print({ silent: true, margins: { marginType: 'none' } }, (success, failureReason) => {
-      if (!success) console.error('Erro na impressão:', failureReason);
-      win.close();
-    });
-  });
-});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
