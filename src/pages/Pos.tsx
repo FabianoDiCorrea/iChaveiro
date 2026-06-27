@@ -540,48 +540,15 @@ export const Pos = () => {
             </html>
           `;
           // Add extra margin for thermal printers
-          html += '<div style="height: 50px;"></div>';
+          html += '<br><br><br><br><br><br><div style="visibility: hidden;">.</div>';
 
-          const printIframe = document.createElement('iframe');
-          printIframe.style.position = 'absolute';
-          printIframe.style.width = '0px';
-          printIframe.style.height = '0px';
-          printIframe.style.border = 'none';
-          document.body.appendChild(printIframe);
+          const { ipcRenderer } = (window as any).require('electron');
+          ipcRenderer.send('print-html', html);
           
-          const doc = printIframe.contentWindow?.document;
-          if (doc) {
-            doc.open();
-            doc.write(html);
-            doc.close();
-            setTimeout(() => {
-              printIframe.contentWindow?.focus();
-              printIframe.contentWindow?.print();
-              setTimeout(() => {
-                document.body.removeChild(printIframe);
-                if (twoCopies) {
-                  if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-                    const printIframe2 = document.createElement('iframe');
-                    printIframe2.style.position = 'absolute';
-                    printIframe2.style.width = '0px';
-                    printIframe2.style.height = '0px';
-                    printIframe2.style.border = 'none';
-                    document.body.appendChild(printIframe2);
-                    const doc2 = printIframe2.contentWindow?.document;
-                    if (doc2) {
-                      doc2.open();
-                      doc2.write(html);
-                      doc2.close();
-                      setTimeout(() => {
-                        printIframe2.contentWindow?.focus();
-                        printIframe2.contentWindow?.print();
-                        setTimeout(() => document.body.removeChild(printIframe2), 1000);
-                      }, 500);
-                    }
-                  }
-                }
-              }, 1000);
-            }, 500);
+          if (twoCopies) {
+            if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
+              ipcRenderer.send('print-html', html);
+            }
           }
       }
 
@@ -663,26 +630,10 @@ export const Pos = () => {
         </html>
       `;
       // Add extra margin for thermal printers
-      html += '<div style="height: 50px;"></div>';
+      html += '<br><br><br><br><br><div style="visibility: hidden;">.</div>';
 
-      const printIframe = document.createElement('iframe');
-      printIframe.style.position = 'absolute';
-      printIframe.style.width = '0px';
-      printIframe.style.height = '0px';
-      printIframe.style.border = 'none';
-      document.body.appendChild(printIframe);
-      
-      const doc = printIframe.contentWindow?.document;
-      if (doc) {
-        doc.open();
-        doc.write(html);
-        doc.close();
-        setTimeout(() => {
-          printIframe.contentWindow?.focus();
-          printIframe.contentWindow?.print();
-          setTimeout(() => document.body.removeChild(printIframe), 1000);
-        }, 500);
-      }
+      const { ipcRenderer } = (window as any).require('electron');
+      ipcRenderer.send('print-html', html);
     };
 
   const handleCloseRegister = async () => {
