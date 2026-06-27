@@ -54,7 +54,7 @@ app.whenReady().then(() => {
       message: 'O download da atualização foi concluído. O aplicativo será reiniciado para aplicar a nova versão.',
       buttons: ['Reiniciar e Instalar']
     }).then(() => {
-      setImmediate(() => autoUpdater.quitAndInstall());
+      setImmediate(() => autoUpdater.quitAndInstall(true, true));
     });
   });
 
