@@ -90,7 +90,7 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
         return sum + ((orig - i.price) * i.quantity);
       }, 0);
 
-      const html = `
+      let html = `
         <html>
         <head>
           <title>Cupom Não Fiscal</title>

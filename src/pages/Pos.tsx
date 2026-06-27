@@ -463,7 +463,7 @@ export const Pos = () => {
             return sum + ((orig - i.price) * i.quantity);
           }, 0);
 
-          const html = `
+          let html = `
             <html>
             <head>
               <title>Cupom Não Fiscal</title>
@@ -576,7 +576,7 @@ export const Pos = () => {
       const totalWages = wages.reduce((sum, w) => sum + w.amount, 0);
       const pureExpenses = (totals.expenses || 0) - totalWages;
 
-      const html = `
+      let html = `
         <html>
         <head>
           <title>Fechamento de Caixa</title>
