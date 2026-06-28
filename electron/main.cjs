@@ -63,16 +63,34 @@ app.whenReady().then(() => {
   });
 });
 
-ipcMain.on('print-text', (event, text) => {
-  const { exec } = require('child_process');
-  const fs = require('fs');
-  const path = require('path');
-  const tmpPath = path.join(app.getPath('temp'), 'receipt.txt');
-  fs.writeFileSync(tmpPath, text, 'utf8');
-  exec(`powershell -Command "Get-Content '${tmpPath}' -Encoding UTF8 | Out-Printer"`, (err) => {
-    if (err) console.error("Text print error:", err);
+  ipcMain.on('print-text', (event, text) => {
+    const { exec } = require('child_process');
+    const fs = require('fs');
+    const path = require('path');
+    const tmpPath = path.join(app.getPath('temp'), 'receipt.txt');
+    const psScriptPath = path.join(app.getPath('temp'), 'print.ps1');
+    fs.writeFileSync(tmpPath, text, 'utf8');
+    
+    const psScript = `
+Add-Type -AssemblyName System.Drawing
+$doc = New-Object System.Drawing.Printing.PrintDocument
+$font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Regular)
+$doc.PrintController = New-Object System.Drawing.Printing.StandardPrintController
+
+$doc.add_PrintPage({
+    param($sender, $e)
+    $text = [System.IO.File]::ReadAllText('${tmpPath.replace(/\\/g, '\\\\')}', [System.Text.Encoding]::UTF8)
+    $brush = [System.Drawing.Brushes]::Black
+    $e.Graphics.DrawString($text, $font, $brush, 0, 0)
+})
+
+$doc.Print()
+`;
+    fs.writeFileSync(psScriptPath, psScript, 'utf8');
+    exec(`powershell -ExecutionPolicy Bypass -File "${psScriptPath}"`, (err, stdout, stderr) => {
+      if (err) console.error("Text print error:", err, stderr);
+    });
   });
-});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
