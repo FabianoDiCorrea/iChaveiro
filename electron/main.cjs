@@ -32,7 +32,7 @@ app.whenReady().then(() => {
 
   // Configurações do autoUpdater
   autoUpdater.autoDownload = false;
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdates();
 
   autoUpdater.on('update-available', (info) => {
     dialog.showMessageBox({
