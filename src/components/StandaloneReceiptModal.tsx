@@ -194,7 +194,6 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           onClose();
         }, 2000);
       }, 500);
-    }
   };
 
   return (
