@@ -19,10 +19,10 @@ ipcMain.on('print-receipt', (event, html, twoCopies) => {
   printWin.loadURL(dataUrl);
 
   printWin.webContents.on('did-finish-load', () => {
-    printWin.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
+    printWin.webContents.print({ silent: true, printBackground: true, margins: { marginType: 'none' } }, (success, failureReason) => {
       if (twoCopies && success) {
         setTimeout(() => {
-          printWin.webContents.print({ silent: true, printBackground: true }, () => {
+          printWin.webContents.print({ silent: true, printBackground: true, margins: { marginType: 'none' } }, () => {
             printWin.close();
           });
         }, 1500);
