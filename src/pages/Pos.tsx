@@ -525,15 +525,10 @@ export const Pos = () => {
         document.body.appendChild(printRoot);
         
         setTimeout(() => {
-          window.print();
-          if (twoCopies) {
-            setTimeout(() => {
-              window.print();
-              setTimeout(() => document.body.removeChild(printRoot), 1500);
-            }, 1000);
-          } else {
-            setTimeout(() => document.body.removeChild(printRoot), 1500);
-          }
+          window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies);
+          window.require('electron').ipcRenderer.once('print-done', () => {
+            if (printRoot.parentNode) document.body.removeChild(printRoot);
+          });
         }, 300);
       }
 
@@ -604,8 +599,10 @@ export const Pos = () => {
     document.body.appendChild(printRoot);
     
     setTimeout(() => {
-      window.print();
-      setTimeout(() => document.body.removeChild(printRoot), 1500);
+      window.require('electron').ipcRenderer.send('print-receipt-main', false);
+      window.require('electron').ipcRenderer.once('print-done', () => {
+        if (printRoot.parentNode) document.body.removeChild(printRoot);
+      });
     }, 300);
   };
 

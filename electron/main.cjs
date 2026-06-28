@@ -6,34 +6,23 @@ const { autoUpdater } = require('electron-updater');
 // Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
 app.commandLine.appendSwitch('kiosk-printing');
 
-ipcMain.on('print-receipt', (event, html, twoCopies) => {
-  let printWin = new BrowserWindow({
-    show: false,
-    width: 300,
-    height: 1000,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+ipcMain.on('print-receipt-main', (event, twoCopies) => {
+  const printOptions = {
+    silent: true,
+    printBackground: true,
+    margins: { marginType: 'none' }
+  };
+
+  event.sender.print(printOptions, (success) => {
+    if (success && twoCopies) {
+      setTimeout(() => {
+        event.sender.print(printOptions, () => {
+          event.sender.send('print-done');
+        });
+      }, 1000);
+    } else {
+      event.sender.send('print-done');
     }
-  });
-
-  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-  printWin.loadURL(dataUrl);
-
-  printWin.webContents.on('did-finish-load', () => {
-    setTimeout(() => {
-      printWin.webContents.print({ silent: true, printBackground: true, margins: { marginType: 'none' } }, (success, failureReason) => {
-        if (twoCopies && success) {
-          setTimeout(() => {
-            printWin.webContents.print({ silent: true, printBackground: true, margins: { marginType: 'none' } }, () => {
-              printWin.close();
-            });
-          }, 1500);
-        } else {
-          printWin.close();
-        }
-      });
-    }, 1500); // Aguarda renderização
   });
 });
 
