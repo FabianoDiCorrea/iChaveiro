@@ -16,6 +16,8 @@ export const Pos = () => {
 
   useEffect(() => {
     localStorage.setItem('ichaveiro_last_profile', transactionProfile);
+    const savedDrawerLeft = localStorage.getItem(`ichaveiro_last_drawer_left_${transactionProfile}`) || '0,00';
+    setOpenRegisterCash(savedDrawerLeft);
   }, [transactionProfile]);
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -42,13 +44,13 @@ export const Pos = () => {
   const [pendingClientPhone, setPendingClientPhone] = useState('');
 
   // Cash Register (Caixa) Session states
-  const [openRegisterCash, setOpenRegisterCash] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
+  const [openRegisterCash, setOpenRegisterCash] = useState<string>('0,00');
   const [showCloseRegisterModal, setShowCloseRegisterModal] = useState(false);
   const [closeRegisterCash, setCloseRegisterCash] = useState<string>('');
   const [selectedEmployeesToPay, setSelectedEmployeesToPay] = useState<number[]>([]);
   const [customWages, setCustomWages] = useState<Record<number, string>>({});
   const employees = useLiveQuery(() => db.employees?.toArray() || []);
-  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
+  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>('0,00');
 
   // Expense states
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -741,7 +743,7 @@ export const Pos = () => {
         printCloseReport(activeSession, updatedTotals, closeCashVal - totalWagesToPay, leftInDrawerVal, wageDetails);
       }
 
-      localStorage.setItem('ichaveiro_last_drawer_left', closeLeftInDrawer);
+      localStorage.setItem(`ichaveiro_last_drawer_left_${transactionProfile}`, closeLeftInDrawer);
       setOpenRegisterCash(closeLeftInDrawer);
       setShowCloseRegisterModal(false);
       setCloseRegisterCash('');
