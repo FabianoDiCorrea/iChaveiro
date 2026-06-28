@@ -168,7 +168,7 @@ export const SalesHistory = () => {
                 <tr>
                   <td class="text-left" valign="top">${i.quantity}x</td>
                   <td class="text-left" valign="top">
-                    ${i.name}<br>
+                    <strong>${i.name}</strong><br>
                     <span style="font-size: 10px; color: #000;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
                   </td>
                   <td class="text-right" valign="top">R$ ${itemTotal.toFixed(2).replace('.', ',')}</td>

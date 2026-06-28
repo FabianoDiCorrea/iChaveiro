@@ -509,14 +509,14 @@ export const Pos = () => {
                       <tr>
                         <td class="text-left" valign="top">${i.quantity}x</td>
                         <td class="text-left" valign="top">
-                          ${i.name}<br>
+                          <strong>${i.name}</strong><br>
                           ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
                             <div style="font-size: 12px; color: #000;">
-                              <strong>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</strong>
+                              De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
                             </div>
                           ` : `
-                            <div style="font-size: 12px; color: #000;"><strong>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</strong></div>
+                            <div style="font-size: 12px; color: #000;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</div>
                           `}
                         </td>
                         <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
@@ -652,9 +652,7 @@ export const Pos = () => {
             <tr><td>Vendas Crédito:</td><td class="text-right">R$ ${totals.credit.toFixed(2).replace('.', ',')}</td></tr>
             <tr class="bold"><td>Total Período:</td><td class="text-right">R$ ${totals.totalSales.toFixed(2).replace('.', ',')}</td></tr>
           </table>
-          <div class="divider"></div>
-          <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
-          <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
+          <div class="divider" style="margin-bottom: 20px;"></div>
           <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
