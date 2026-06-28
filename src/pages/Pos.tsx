@@ -465,11 +465,11 @@ export const Pos = () => {
 
         const html = `
           <div style="width: 100%;">
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
               <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
               <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
@@ -522,14 +522,14 @@ export const Pos = () => {
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
               </table>
               <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferencia!</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
           </div>
         `;
         const printRoot = document.createElement('div');
@@ -540,7 +540,9 @@ export const Pos = () => {
         setTimeout(() => {
           window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies);
           window.require('electron').ipcRenderer.once('print-done', () => {
-            if (printRoot.parentNode) document.body.removeChild(printRoot);
+            setTimeout(() => {
+              if (printRoot.parentNode) document.body.removeChild(printRoot);
+            }, 10000);
           });
         }, 300);
       }
@@ -571,11 +573,11 @@ export const Pos = () => {
 
     const html = `
       <div style="width: 100%;">
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
           <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
@@ -608,14 +610,14 @@ export const Pos = () => {
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
         <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
-        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
       </div>
     `;
     const printRoot = document.createElement('div');
@@ -626,7 +628,9 @@ export const Pos = () => {
     setTimeout(() => {
       window.require('electron').ipcRenderer.send('print-receipt-main', false);
       window.require('electron').ipcRenderer.once('print-done', () => {
-        if (printRoot.parentNode) document.body.removeChild(printRoot);
+        setTimeout(() => {
+          if (printRoot.parentNode) document.body.removeChild(printRoot);
+        }, 10000);
       });
     }, 300);
   };
