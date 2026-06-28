@@ -96,7 +96,7 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           <title>Cupom Não Fiscal</title>
           <style>
             @page { margin: 10mm 0; }
-            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
+            body { font-family: monospace; font-size: 12px; width: 270px; margin: 0; padding: 0; overflow: hidden; color: black; }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
@@ -162,18 +162,10 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
       `;
       
       // Add extra margin for thermal printers
-      html += '<br><br><br><br><br><br><div style="visibility: hidden;">.</div>';
+      html += '<div style="color: white; margin-top: 40px; border-bottom: 1px solid white;">.</div>';
       
-      const printRoot = document.getElementById('print-root');
-      if (printRoot) {
-        printRoot.innerHTML = html;
-        setTimeout(() => {
-          window.print();
-          setTimeout(() => {
-            printRoot.innerHTML = '';
-          }, 500);
-        }, 500);
-      }
+      const { ipcRenderer } = (window as any).require('electron');
+      ipcRenderer.send('print-html', html);
       
       setItems([]);
       setClientName('');

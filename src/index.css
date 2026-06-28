@@ -264,21 +264,3 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(200deg) brightness(98%) contrast(98%);
 }
-
-@media print {
-  #root {
-    display: none !important;
-  }
-  #print-root {
-    display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-  }
-  @page {
-    margin: 0;
-  }
-}
