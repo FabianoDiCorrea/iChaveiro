@@ -18,6 +18,7 @@
   },
   "build": {
     "appId": "com.ichaveiro.app",
+    "generateUpdatesFilesForAllChannels": true,
     "productName": "iChaveiro",
     "icon": "public/icon.ico",
     "directories": {
