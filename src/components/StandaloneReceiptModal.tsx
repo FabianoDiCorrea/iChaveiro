@@ -78,41 +78,45 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
   const handlePrint = () => {
     if (items.length === 0) return alert('Adicione itens ao cupom avulso.');
 
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      const dateObj = new Date(receiptDate);
-      const dateStr = dateObj.toLocaleString('pt-BR');
-      
-      const originalSubtotal = items.reduce((sum, i) => {
-        const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
-        return sum + (orig * i.quantity);
-      }, 0);
-      const quantityDiscount = items.reduce((sum, i) => {
-        const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
-        return sum + ((orig - i.price) * i.quantity);
-      }, 0);
+    const dateObj = new Date(receiptDate);
+    const dateStr = dateObj.toLocaleString('pt-BR');
+    
+    const originalSubtotal = items.reduce((sum, i) => {
+      const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+      return sum + (orig * i.quantity);
+    }, 0);
+    const quantityDiscount = items.reduce((sum, i) => {
+      const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+      return sum + ((orig - i.price) * i.quantity);
+    }, 0);
 
-      const html = `
+    const html = `
         <html>
         <head>
           <title>Cupom Não Fiscal</title>
           <style>
-            @page { margin: 10mm 0; }
-            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
+            @page { margin: 5mm 2mm; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
             .text-center { text-align: center; }
+            .text-left { text-align: left; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
             .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
             table { width: 100%; border-collapse: collapse; font-size: 12px; }
             th, td { padding: 2px 0; }
-            .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+            .header-title { font-size: 18px; font-weight: 900; margin-bottom: 5px; line-height: 1.2; text-transform: uppercase; }
           </style>
         </head>
         <body>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-          <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
-          <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
+          <div class="text-center bold" style="font-size: 12px; margin-top: 5px;">Rua Cardoso de Morais, Frente ao 202</div>
+          <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
+          <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
           <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
           ${clientName ? `<div class="divider"></div><div class="bold">Cliente: ${clientName}</div>` : ''}
           <div class="divider"></div>
@@ -132,14 +136,14 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
                   <tr>
                     <td class="text-left" valign="top">${i.quantity}x</td>
                     <td class="text-left" valign="top">
-                      ${i.name}<br>
+                      <strong>${i.name}</strong><br>
                       ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
                         <div style="font-size: 12px; color: #000;">
-                          <strong>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</strong>
+                          De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
+                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)
                         </div>
                       ` : `
-                        <div style="font-size: 12px; color: #000;"><strong>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</strong></div>
+                        <div style="font-size: 12px; color: #000;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</div>
                       `}
                     </td>
                     <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
@@ -157,22 +161,39 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
             <tr><td class="bold">Troco:</td><td class="text-right bold">R$ 0,00</td></tr>
           </table>
           <div class="divider"></div>
-          <div class="text-center">Obrigado pela preferencia!</div>
+          <div class="text-center" style="margin-bottom: 10px; font-weight: bold; font-size: 13px;">Obrigado pela preferência!</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         </body>
         </html>
       `;
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
+
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '300px';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      iframe.contentDocument!.write(html);
+      iframe.contentDocument!.close();
+      
       setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-        
-        // Clear and close modal after print
-        setItems([]);
-        setClientName('');
-        onClose();
-      }, 250);
+        iframe.contentWindow!.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          setItems([]);
+          setClientName('');
+          onClose();
+        }, 2000);
+      }, 500);
     }
   };
 
