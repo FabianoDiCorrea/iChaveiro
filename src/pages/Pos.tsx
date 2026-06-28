@@ -453,7 +453,6 @@ export const Pos = () => {
 
       // Imprimir Cupom
       if (shouldPrint) {
-        const { ipcRenderer } = window.require('electron');
         const dateStr = new Date().toLocaleString('pt-BR');
         const originalSubtotal = items.reduce((sum, i) => {
           const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
@@ -541,8 +540,7 @@ export const Pos = () => {
           </body>
           </html>
         `;
-        const { ipcRenderer } = window.require('electron');
-        ipcRenderer.send('print-receipt', html, twoCopies);
+        window.require('electron').ipcRenderer.send('print-receipt', html, twoCopies);
       }
 
       setItems([]);
@@ -561,7 +559,6 @@ export const Pos = () => {
   };
 
   const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number }[] = []) => {
-    const { ipcRenderer } = window.require('electron');
     const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
     const closedStr = new Date().toLocaleString('pt-BR');
     const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0);
@@ -624,8 +621,7 @@ export const Pos = () => {
       </body>
       </html>
     `;
-    const { ipcRenderer } = window.require('electron');
-    ipcRenderer.send('print-receipt', html, false);
+    window.require('electron').ipcRenderer.send('print-receipt', html, false);
   };
 
   const handleCloseRegister = async () => {
