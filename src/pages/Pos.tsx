@@ -465,11 +465,11 @@ export const Pos = () => {
 
         const html = `
           <div style="width: 100%;">
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
               <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
               <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
@@ -524,14 +524,14 @@ export const Pos = () => {
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
               </table>
               <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferencia!</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
           </div>
         `;
         const printRoot = document.createElement('div');
@@ -575,11 +575,11 @@ export const Pos = () => {
 
     const html = `
       <div style="width: 100%;">
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
           <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
           <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
@@ -614,14 +614,14 @@ export const Pos = () => {
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
         <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
       </div>
     `;
     const printRoot = document.createElement('div');
