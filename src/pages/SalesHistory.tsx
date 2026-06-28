@@ -200,8 +200,21 @@ export const SalesHistory = () => {
       </html>
     `;
 
-    const { ipcRenderer } = window.require('electron');
-    ipcRenderer.send('print-receipt', html, false);
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '300px';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    iframe.contentDocument!.write(html);
+    iframe.contentDocument!.close();
+    
+    setTimeout(() => {
+      iframe.contentWindow!.print();
+      setTimeout(() => document.body.removeChild(iframe), 2000);
+    }, 500);
   };
 
   const handleSaveEdit = async () => {
