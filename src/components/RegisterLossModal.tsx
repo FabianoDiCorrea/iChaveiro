@@ -17,8 +17,8 @@ export function RegisterLossModal({ isOpen, onClose, activeProfile }: Props) {
   const [notes, setNotes] = useState('');
   
   const product = useLiveQuery(
-    () => db.products.where('code').equals(code).and(p => p.profile === activeProfile).first(),
-    [code, activeProfile]
+    () => db.products.where('code').equals(code).first(),
+    [code]
   );
 
   useEffect(() => {

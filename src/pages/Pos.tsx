@@ -470,8 +470,8 @@ export const Pos = () => {
             <head>
               <title>Cupom Não Fiscal</title>
               <style>
-                @page { margin: 10mm 0; }
-                body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
+                @page { margin: 5mm 2mm; }
+                body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
                 .text-center { text-align: center; }
                 .text-right { text-align: right; }
                 .bold { font-weight: bold; }
@@ -562,6 +562,7 @@ export const Pos = () => {
       setCustomUnitPrice('');
       setSplitPayments([]);
       setActivePendingSaleId(null);
+      setPrintTwoCopies(false);
       if (searchInputRef.current) searchInputRef.current.focus();
     } catch (error) {
       console.error(error);
@@ -585,8 +586,8 @@ export const Pos = () => {
         <head>
           <title>Fechamento de Caixa</title>
           <style>
-            @page { margin: 10mm 0; }
-            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
+            @page { margin: 5mm 2mm; }
+            body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
@@ -877,7 +878,6 @@ export const Pos = () => {
                 initialCash: val,
                 status: 'open'
               });
-              setOpenRegisterCash('50,00');
             }}
             style={{
               backgroundColor: '#22c55e',
