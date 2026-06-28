@@ -264,3 +264,33 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(200deg) brightness(98%) contrast(98%);
 }
+
+@media print {
+  #root {
+    display: none !important;
+  }
+  #print-root {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 76mm;
+    margin: 0;
+    padding: 0;
+    font-family: monospace;
+    font-size: 13px;
+    color: black;
+    background: white;
+  }
+  @page {
+    margin: 0;
+  }
+  #print-root .text-center { text-align: center; }
+  #print-root .text-right { text-align: right; }
+  #print-root .text-left { text-align: left; }
+  #print-root .bold { font-weight: bold; }
+  #print-root .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+  #print-root table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #print-root th, #print-root td { padding: 2px 0; }
+  #print-root .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+}
