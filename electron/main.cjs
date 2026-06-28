@@ -11,7 +11,8 @@ ipcMain.on('print-receipt-main', (event, twoCopies) => {
     silent: true,
     printBackground: true,
     margins: { marginType: 'none' },
-    pageSize: { width: 76000, height: 297000 } // Roll 80 x 297 mm
+    pageSize: { width: 76000, height: 297000 }, // Roll 80 x 297 mm
+    deviceName: 'POS80'
   };
 
   event.sender.print(printOptions, (success) => {
