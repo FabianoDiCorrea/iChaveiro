@@ -1,71 +1,65 @@
-const printReceipt = () => {
-  if (!sale) return;
+import React, { useState } from 'react';
+import { type TransactionItem } from '../db/db';
+import { Plus, Trash2, Printer, X } from 'lucide-react';
 
-  const removeAccents = (str) => {
-    return str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
-  };
+interface StandaloneReceiptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
-  const pad = (str, length, align = 'left') => {
-    str = str.toString();
-    if (str.length > length) str = str.substring(0, length);
-    if (align === 'left') return str.padEnd(length, ' ');
-    if (align === 'right') return str.padStart(length, ' ');
-    return str.padStart(Math.floor((length + str.length) / 2), ' ').padEnd(length, ' ');
-  };
+const PREDEFINED_SERVICES = [
+  'CHAVE COMUM',
+  'AFIAÇÃO DE ALICATE',
+  'AFIAÇÃO DE FACA',
+  'AFIAÇÃO DE TESOURA COMUM',
+  'AFIAÇÃO DE TESOURA GRANDE',
+  'AFIAÇÃO DE TESOURINHA',
+  'OUTROS / SERVIÇO DE RUA'
+];
 
-  let text = "";
-  text += pad("Chaveiro & Cutelaria", 32, 'center') + "\n";
-  text += pad("do Lidio e Fabiano", 32, 'center') + "\n";
-  text += pad("Rua Cardoso de Morais, F. 302", 32, 'center') + "\n";
-  text += pad("Bonsucesso - RJ", 32, 'center') + "\n";
-  text += pad("Tel: (21) 98601-6721", 32, 'center') + "\n";
-  text += "-".repeat(32) + "\n";
-  text += `Data: ${new Date(sale.created_at).toLocaleString('pt-BR')}\n`;
-  text += `Venda: #${sale.id.toString().slice(-6)}\n`;
-  text += `Operador: ${removeAccents(currentProfile || 'Padrao')}\n`;
-  text += "-".repeat(32) + "\n";
-  text += pad("Qtd", 4) + " " + pad("Item", 17) + " " + pad("Total", 8, 'right') + "\n";
+export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ isOpen, onClose }) => {
+  const [items, setItems] = useState<TransactionItem[]>([]);
+  const [clientName, setClientName] = useState('');
   
-  const parsedItems = JSON.parse(sale.items);
-  parsedItems.forEach((item) => {
-    const q = `${item.quantity}x`;
-    const n = removeAccents(item.name);
-    const t = formatCurrency(item.quantity * item.unitPrice);
-    text += pad(q, 4) + " " + pad(n, 17) + " " + pad(t, 8, 'right') + "\n";
+  // Data e hora padrão: agora
+  const [receiptDate, setReceiptDate] = useState(() => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
+    return localISOTime;
   });
-  
-  text += "-".repeat(32) + "\n";
-  const sub = sale.subtotal_bruto || sale.total;
-  text += pad("Subtotal:", 16) + pad(formatCurrency(sub), 16, 'right') + "\n";
-  
-  const disc = sub - sale.total;
-  if (disc > 0) {
-    text += pad("Desconto:", 16) + pad("-" + formatCurrency(disc), 16, 'right') + "\n";
-  }
-  text += pad("TOTAL A PAGAR:", 16) + pad(formatCurrency(sale.total), 16, 'right') + "\n";
-  
-  if (sale.received_amount && sale.received_amount > 0) {
-    text += pad("Recebido:", 16) + pad(formatCurrency(sale.received_amount), 16, 'right') + "\n";
-    text += pad("Troco:", 16) + pad(formatCurrency(sale.change_amount || 0), 16, 'right') + "\n";
-  }
-  
-  if (sale.observations) {
-    text += "-".repeat(32) + "\n";
-    text += `Obs: ${removeAccents(sale.observations)}\n`;
-  }
-  
-  text += "\n" + pad("Obrigado pela preferencia!", 32, 'center') + "\n";
-  text += "\n\n\n\n\n\n.\n";
-  
-  const { ipcRenderer } = (window as any).require('electron');
-  ipcRenderer.send('print-text', text);
-  
-  if (twoCopies) {
-    if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-      ipcRenderer.send('print-text', text);
+
+  const [selectedService, setSelectedService] = useState(PREDEFINED_SERVICES[0]);
+  const [customServiceInfo, setCustomServiceInfo] = useState('');
+  const [servicePrice, setServicePrice] = useState('');
+  const [serviceQty, setServiceQty] = useState('1');
+
+  if (!isOpen) return null;
+
+  const handleAddService = (e: React.FormEvent) => {
+    e.preventDefault();
+    const qty = parseInt(serviceQty) || 1;
+    const price = Number(servicePrice.replace(',', '.')) || 0;
+    
+    let name = selectedService;
+    if (selectedService === 'OUTROS / SERVIÇO DE RUA') {
+      name = customServiceInfo.trim() || 'Serviço Personalizado';
     }
-  }
-};
+
+    setItems([...items, {
+      service: 'other',
+      name: name,
+      quantity: qty,
+      price: price,
+      originalPrice: price,
+      cost: 0,
+      total: price * qty
+    } as any]);
+
+    setServicePrice('');
+    setServiceQty('1');
+    setCustomServiceInfo('');
+  };
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
@@ -96,82 +90,33 @@ const printReceipt = () => {
         return sum + ((orig - i.price) * i.quantity);
       }, 0);
 
-      let html = `
-        <html>
-        <head>
-          <title>Cupom Não Fiscal</title>
-          <style>
-            @page { margin: 10mm 0; }
-            body { font-family: monospace; font-size: 12px; width: 270px; margin: 0; padding: 0; overflow: hidden; color: black; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { padding: 2px 0; }
-            .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-          </style>
-        </head>
-        <body>
-          <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-          <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
-          <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
-          <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
-          ${clientName ? `<div class="divider"></div><div class="bold">Cliente: ${clientName}</div>` : ''}
-          <div class="divider"></div>
-          <table>
-            <thead>
-              <tr>
-                <th class="text-left" style="width: 15%">Qtd</th>
-                <th class="text-left" style="width: 60%">Item</th>
-                <th class="text-right" style="width: 25%">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${items.map(i => {
-                const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
-                const itemOriginalTotal = orig * i.quantity;
-                return `
-                  <tr>
-                    <td class="text-left" valign="top">${i.quantity}x</td>
-                    <td class="text-left" valign="top">
-                      ${i.name}<br>
-                      ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                        <div style="font-size: 12px; color: #000;">
-                          <strong>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                          Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</strong>
-                        </div>
-                      ` : `
-                        <div style="font-size: 12px; color: #000;"><strong>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</strong></div>
-                      `}
-                    </td>
-                    <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-          <div class="divider"></div>
-          <table>
-            <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ ${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
-            ${quantityDiscount > 0 ? `<tr><td class="bold">Desc. Quantidade:</td><td class="text-right">-R$ ${quantityDiscount.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-            <tr><td class="bold header-title">TOTAL A PAGAR:</td><td class="text-right header-title">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td>Recebido:</td><td class="text-right">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Troco:</td><td class="text-right bold">R$ 0,00</td></tr>
-          </table>
-          <div class="divider"></div>
-          <div class="text-center">Obrigado pela preferencia!</div>
-          <br><br><br>
-        </body>
-        </html>
-      `;
+      const rmAcc = (s: string) => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+      const pad = (s: string, l: number, a = 'left') => { s=s.toString(); if(s.length>l) s=s.substring(0,l); if(a==='left') return s.padEnd(l, ' '); if(a==='right') return s.padStart(l, ' '); return s.padStart(Math.floor((l+s.length)/2), ' ').padEnd(l, ' '); };
       
-      // Add extra margin for thermal printers
-      html += '<div style="color: white; margin-top: 40px; border-bottom: 1px solid white;">.</div>';
+      let text = pad('Chaveiro & Cutelaria', 32, 'center') + '\n' + pad('do Lidio e Fabiano', 32, 'center') + '\n' + pad('Rua Cardoso de Morais, F. 302', 32, 'center') + '\n' + pad('Bonsucesso - RJ', 32, 'center') + '\n' + pad('Tel: (21) 98601-6721', 32, 'center') + '\n';
+      text += '-'.repeat(32) + '\n';
+      text += `Data: ${dateStr}\n`;
+      if (clientName) text += `Cliente: ${rmAcc(clientName)}\n`;
+      text += '-'.repeat(32) + '\n';
+      text += pad('Qtd', 4) + ' ' + pad('Item', 17) + ' ' + pad('Total', 8, 'right') + '\n';
+      
+      items.forEach(i => {
+        const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+        const total = orig * i.quantity;
+        text += pad(i.quantity+'x', 4) + ' ' + pad(rmAcc(i.name), 17) + ' ' + pad(total.toFixed(2).replace('.', ','), 8, 'right') + '\n';
+      });
+      
+      text += '-'.repeat(32) + '\n';
+      text += pad('Subtotal Bruto:', 16) + pad(originalSubtotal.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+      if (quantityDiscount > 0) text += pad('Desconto:', 16) + pad('-' + quantityDiscount.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+      text += pad('TOTAL A PAGAR:', 16) + pad(totalAmount.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+      text += pad('Recebido:', 16) + pad(totalAmount.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+      text += pad('Troco:', 16) + pad('0,00', 16, 'right') + '\n';
+      
+      text += '\n' + pad('Obrigado pela preferencia!', 32, 'center') + '\n\n\n\n\n\n\n.\n';
       
       const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.send('print-html', html);
+      ipcRenderer.send('print-text', text);
       
       setItems([]);
       setClientName('');

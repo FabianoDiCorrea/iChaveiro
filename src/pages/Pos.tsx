@@ -1,107 +1,78 @@
-const printClosingReceipt = () => {
-  const removeAccents = (str) => {
-    return str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
-  };
+import React, { useState, useEffect, useRef } from 'react';
+import { db, type ServiceType, type PaymentMethod, type TransactionItem } from '../db/db';
+import type { Profile } from '../db/db';
+import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag, Package, Printer } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { RegisterLossModal } from '../components/RegisterLossModal';
+import { runAutoBackup } from '../db/sync';
+import { StandaloneReceiptModal } from '../components/StandaloneReceiptModal';
+import { StorageBoxModal } from '../components/StorageBoxModal';
+import { differenceInDays } from 'date-fns';
 
-  const pad = (str, length, align = 'left') => {
-    str = str.toString();
-    if (str.length > length) str = str.substring(0, length);
-    if (align === 'left') return str.padEnd(length, ' ');
-    if (align === 'right') return str.padStart(length, ' ');
-    return str.padStart(Math.floor((length + str.length) / 2), ' ').padEnd(length, ' ');
-  };
-
-  let text = "";
-  text += pad("FECHAMENTO DE CAIXA", 32, 'center') + "\n";
-  text += "-".repeat(32) + "\n";
-  text += `Data: ${new Date().toLocaleString('pt-BR')}\n`;
-  text += `Operador: ${removeAccents(currentProfile)}\n`;
-  text += "-".repeat(32) + "\n";
-  
-  text += pad("Fundo de Caixa:", 20) + pad(formatCurrency(openingBalance), 12, 'right') + "\n";
-  text += "\n";
-  text += pad("Vendas (Dinheiro):", 20) + pad(formatCurrency(salesCash), 12, 'right') + "\n";
-  text += pad("Vendas (Pix):", 20) + pad(formatCurrency(salesPix), 12, 'right') + "\n";
-  text += pad("Vendas (Debito):", 20) + pad(formatCurrency(salesDebit), 12, 'right') + "\n";
-  text += pad("Vendas (Credito):", 20) + pad(formatCurrency(salesCredit), 12, 'right') + "\n";
-  text += "-".repeat(32) + "\n";
-  
-  text += pad("Total Entradas:", 20) + pad(formatCurrency(totalEntradas), 12, 'right') + "\n";
-  text += pad("Total Retiradas:", 20) + pad(formatCurrency(totalRetiradas), 12, 'right') + "\n";
-  text += pad("Total Perdas:", 20) + pad(formatCurrency(totalPerdas), 12, 'right') + "\n";
-  text += pad("Lucro do Dia:", 20) + pad(formatCurrency(lucro), 12, 'right') + "\n";
-  text += "-".repeat(32) + "\n";
-  
-  text += pad("TOTAL CAIXA ESPERADO:", 22) + pad(formatCurrency(totalEsperado), 10, 'right') + "\n";
-  text += pad("TOTAL CAIXA REAL:", 22) + pad(formatCurrency(closingBalance), 10, 'right') + "\n";
-  
-  text += "-".repeat(32) + "\n";
-  text += pad("Diferenca:", 20) + pad(formatCurrency(closingBalance - totalEsperado), 12, 'right') + "\n";
-  
-  text += "\n\n\n\n\n\n.\n";
-  
-  const { ipcRenderer } = (window as any).require('electron');
-  ipcRenderer.send('print-text', text);
-};
-
-  const pad = (str, length, align = 'left') => {
-    str = str.toString();
-    if (str.length > length) str = str.substring(0, length);
-    if (align === 'left') return str.padEnd(length, ' ');
-    if (align === 'right') return str.padStart(length, ' ');
-    return str.padStart(Math.floor((length + str.length) / 2), ' ').padEnd(length, ' ');
-  };
-
-  let text = "";
-  text += pad("Chaveiro & Cutelaria", 32, 'center') + "\n";
-  text += pad("do Lidio e Fabiano", 32, 'center') + "\n";
-  text += pad("Rua Cardoso de Morais, F. 302", 32, 'center') + "\n";
-  text += pad("Bonsucesso - RJ", 32, 'center') + "\n";
-  text += pad("Tel: (21) 98601-6721", 32, 'center') + "\n";
-  text += "-".repeat(32) + "\n";
-  text += `Data: ${new Date().toLocaleString('pt-BR')}\n`;
-  text += `Venda: #${Date.now().toString().slice(-6)}\n`;
-  text += `Operador: ${removeAccents(currentProfile)}\n`;
-  text += "-".repeat(32) + "\n";
-  text += pad("Qtd", 4) + " " + pad("Item", 17) + " " + pad("Total", 8, 'right') + "\n";
-  
-  items.forEach((item) => {
-    const q = `${item.quantity}x`;
-    const n = removeAccents(item.name);
-    const t = formatCurrency(item.quantity * item.unitPrice);
-    text += pad(q, 4) + " " + pad(n, 17) + " " + pad(t, 8, 'right') + "\n";
+export const Pos = () => {
+  const [transactionProfile, setTransactionProfile] = useState<Profile>(() => {
+    return (localStorage.getItem('ichaveiro_last_profile') as Profile) || 'chaveiro';
   });
-  
-  text += "-".repeat(32) + "\n";
-  text += pad("Subtotal:", 16) + pad(formatCurrency(subtotalBruto), 16, 'right') + "\n";
-  
-  if (discountValue > 0) {
-    text += pad("Desconto:", 16) + pad("-" + formatCurrency(discountValue), 16, 'right') + "\n";
-  }
-  text += pad("TOTAL A PAGAR:", 16) + pad(formatCurrency(total), 16, 'right') + "\n";
-  
-  if (receivedAmount > 0) {
-    text += pad("Recebido:", 16) + pad(formatCurrency(receivedAmount), 16, 'right') + "\n";
-    text += pad("Troco:", 16) + pad(formatCurrency(change), 16, 'right') + "\n";
-  }
-  
-  if (observations) {
-    text += "-".repeat(32) + "\n";
-    text += `Obs: ${removeAccents(observations)}\n`;
-  }
-  
-  text += "\n" + pad("Obrigado pela preferencia!", 32, 'center') + "\n";
-  text += "\n\n\n\n\n\n.\n";
-  
-  const { ipcRenderer } = (window as any).require('electron');
-  ipcRenderer.send('print-text', text);
-  
-  if (twoCopies) {
-    if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-      ipcRenderer.send('print-text', text);
-    }
-  }
-};
+
+  useEffect(() => {
+    localStorage.setItem('ichaveiro_last_profile', transactionProfile);
+  }, [transactionProfile]);
+  const [items, setItems] = useState<TransactionItem[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number }[]>([]);
+  const [currentSplitMethod, setCurrentSplitMethod] = useState<PaymentMethod>('pix');
+  const [currentSplitAmount, setCurrentSplitAmount] = useState<string>('');
+  const [clientCode, setClientCode] = useState('');
+  const [searchProduct, setSearchProduct] = useState('');
+  const [discount, setDiscount] = useState<string>('');
+  const [cashReceived, setCashReceived] = useState<string>('');
+  const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printTwoCopies, setPrintTwoCopies] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showLossModal, setShowLossModal] = useState(false);
+  const [showStandaloneModal, setShowStandaloneModal] = useState(false);
+  const [showStorageBoxModal, setShowStorageBoxModal] = useState(false);
+
+  // Pending Sales states
+  const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [pendingClientName, setPendingClientName] = useState('');
+  const [pendingClientPhone, setPendingClientPhone] = useState('');
+
+  // Cash Register (Caixa) Session states
+  const [openRegisterCash, setOpenRegisterCash] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
+  const [showCloseRegisterModal, setShowCloseRegisterModal] = useState(false);
+  const [closeRegisterCash, setCloseRegisterCash] = useState<string>('');
+  const [selectedEmployeesToPay, setSelectedEmployeesToPay] = useState<number[]>([]);
+  const [customWages, setCustomWages] = useState<Record<number, string>>({});
+  const employees = useLiveQuery(() => db.employees?.toArray() || []);
+  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
+
+  // Expense states
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseDescription, setExpenseDescription] = useState('');
+
+  const activeSession = useLiveQuery(
+    async () => {
+      const sess = await db.cashSessions.where('profile').equals(transactionProfile).filter(s => s.status === 'open').first();
+      return sess || null;
+    },
+    [transactionProfile]
+  );
+
+  const sessionTransactions = useLiveQuery(async () => {
+    if (!activeSession) return [];
+    return await db.transactions
+      .where('date')
+      .aboveOrEqual(activeSession.openedAt)
+      .toArray();
+  }, [activeSession]);
+
+  const sessionTotals = React.useMemo(() => {
+    if (!sessionTransactions) return { cash: 0, pix: 0, debit: 0, credit: 0, totalSales: 0, expenses: 0 };
     const filteredSales = sessionTransactions.filter(t => t.profile === transactionProfile && t.type === 'sale');
     const filteredExpenses = sessionTransactions.filter(t => t.profile === transactionProfile && t.type === 'expense');
     
@@ -492,91 +463,50 @@ const printClosingReceipt = () => {
             return sum + ((orig - i.price) * i.quantity);
           }, 0);
 
-          let html = `
-            <html>
-            <head>
-              <title>Cupom Não Fiscal</title>
-              <style>
-                @page { margin: 10mm 0; }
-                body { font-family: monospace; font-size: 12px; width: 270px; margin: 0; padding: 0; color: black; }
-                .text-center { text-align: center; }
-                .text-right { text-align: right; }
-                .bold { font-weight: bold; }
-                .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
-                table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                th, td { padding: 2px 0; }
-                .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-              </style>
-            </head>
-            <body>
-              <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-              <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-              <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
-              <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
-              <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
-              ${clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${clientCode}</div>` : ''}
-              <div class="divider"></div>
-              <table>
-                <thead>
-                  <tr>
-                    <th class="text-left" style="width: 15%">Qtd</th>
-                    <th class="text-left" style="width: 60%">Item</th>
-                    <th class="text-right" style="width: 25%">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${items.map(i => {
-                    const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
-                    const itemOriginalTotal = orig * i.quantity;
-                    return `
-                      <tr>
-                        <td class="text-left" valign="top">${i.quantity}x</td>
-                        <td class="text-left" valign="top">
-                          ${i.name}<br>
-                          ${(i.originalPrice !== undefined && i.originalPrice > i.price) ? `
-                            <div style="font-size: 12px; color: #000;">
-                              <strong>De: <span style="text-decoration: line-through;">R$ ${i.originalPrice.toFixed(2).replace('.', ',')}</span> 
-                              Por: R$ ${i.price.toFixed(2).replace('.', ',')} (Desc: R$ ${(i.originalPrice - i.price).toFixed(2).replace('.', ',')}/un)</strong>
-                            </div>
-                          ` : `
-                            <div style="font-size: 12px; color: #000;"><strong>Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</strong></div>
-                          `}
-                        </td>
-                        <td class="text-right" valign="top">R$ ${itemOriginalTotal.toFixed(2).replace('.', ',')}</td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-              <div class="divider"></div>
-              <table>
-                <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ ${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
-                ${quantityDiscount > 0 ? `<tr><td class="bold">Desc. Quantidade:</td><td class="text-right">-R$ ${quantityDiscount.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-                ${discountValue > 0 ? `<tr><td class="bold">Desconto Extra:</td><td class="text-right">-R$ ${discountValue.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-                <tr><td class="bold header-title">TOTAL A PAGAR:</td><td class="text-right header-title">R$ ${totalAmount.toFixed(2).replace('.', ',')}</td></tr>
-                ${paymentMethod === 'cash' ? `
-                  <tr><td>Recebido:</td><td class="text-right">R$ ${(parseCurrency(cashReceived) || totalAmount).toFixed(2).replace('.', ',')}</td></tr>
-                  <tr><td class="bold">Troco:</td><td class="text-right bold">R$ ${changeValue.toFixed(2).replace('.', ',')}</td></tr>
-                ` : paymentMethod === 'split' ? `
-                  <tr><td colspan="2" class="bold text-center" style="padding-top: 5px;">PAGAMENTO MÚLTIPLO</td></tr>
-                  ${splitPayments.map(p => `<tr><td>Parcial (${p.method === 'cash' ? 'Dinheiro' : p.method === 'credit' ? 'Crédito' : p.method === 'debit' ? 'Débito' : 'PIX'}):</td><td class="text-right">R$ ${p.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
-                ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
-              </table>
-              <div class="divider"></div>
-              <div class="text-center">Obrigado pela preferencia!</div>
-              <br><br><br>
-            </body>
-            </html>
-          `;
-          // Add extra margin for thermal printers
-          html += '<div style="color: white; margin-top: 40px; border-bottom: 1px solid white;">.</div>';
-
+          const rmAcc = (s: string) => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+          const pad = (s: string, l: number, a = 'left') => { s=s.toString(); if(s.length>l) s=s.substring(0,l); if(a==='left') return s.padEnd(l, ' '); if(a==='right') return s.padStart(l, ' '); return s.padStart(Math.floor((l+s.length)/2), ' ').padEnd(l, ' '); };
+          
+          let text = pad('Chaveiro & Cutelaria', 32, 'center') + '\n' + pad('do Lidio e Fabiano', 32, 'center') + '\n' + pad('Rua Cardoso de Morais, F. 302', 32, 'center') + '\n' + pad('Bonsucesso - RJ', 32, 'center') + '\n' + pad('Tel: (21) 98601-6721', 32, 'center') + '\n';
+          text += '-'.repeat(32) + '\n';
+          text += `Data: ${dateStr}\n`;
+          if (clientCode) text += `Cliente: ${rmAcc(clientCode)}\n`;
+          text += '-'.repeat(32) + '\n';
+          text += pad('Qtd', 4) + ' ' + pad('Item', 17) + ' ' + pad('Total', 8, 'right') + '\n';
+          
+          items.forEach(i => {
+            const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+            const itemOriginalTotal = orig * i.quantity;
+            text += pad(i.quantity+'x', 4) + ' ' + pad(rmAcc(i.name), 17) + ' ' + pad(itemOriginalTotal.toFixed(2).replace('.', ','), 8, 'right') + '\n';
+          });
+          
+          text += '-'.repeat(32) + '\n';
+          text += pad('Subtotal Bruto:', 16) + pad(originalSubtotal.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+          if (quantityDiscount > 0) text += pad('Desc. Qtd:', 16) + pad('-' + quantityDiscount.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+          if (discountValue > 0) text += pad('Desc. Extra:', 16) + pad('-' + discountValue.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+          text += pad('TOTAL A PAGAR:', 16) + pad(totalAmount.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+          
+          if (paymentMethod === 'cash') {
+            text += pad('Recebido:', 16) + pad((parseCurrency(cashReceived) || totalAmount).toFixed(2).replace('.', ','), 16, 'right') + '\n';
+            text += pad('Troco:', 16) + pad(changeValue.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+          } else if (paymentMethod === 'split') {
+            text += pad('PAGAMENTO MULTIPLO', 32, 'center') + '\n';
+            splitPayments.forEach(p => {
+               const pMethod = p.method === 'cash' ? 'Dinheiro' : p.method === 'credit' ? 'Credito' : p.method === 'debit' ? 'Debito' : 'PIX';
+               text += pad(pMethod + ':', 16) + pad(p.amount.toFixed(2).replace('.', ','), 16, 'right') + '\n';
+            });
+          } else {
+            const mText = paymentMethod === 'credit' ? 'Credito' : paymentMethod === 'debit' ? 'Debito' : 'PIX';
+            text += pad('Forma de Pagto:', 16) + pad(mText, 16, 'right') + '\n';
+          }
+          
+          text += '\n' + pad('Obrigado pela preferencia!', 32, 'center') + '\n\n\n\n\n\n\n.\n';
+          
           const { ipcRenderer } = (window as any).require('electron');
-          ipcRenderer.send('print-html', html);
+          ipcRenderer.send('print-text', text);
           
           if (twoCopies) {
             if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-              ipcRenderer.send('print-html', html);
+              ipcRenderer.send('print-text', text);
             }
           }
       }
@@ -605,64 +535,39 @@ const printClosingReceipt = () => {
       const totalWages = wages.reduce((sum, w) => sum + w.amount, 0);
       const pureExpenses = (totals.expenses || 0) - totalWages;
 
-      let html = `
-        <html>
-        <head>
-          <title>Fechamento de Caixa</title>
-          <style>
-            @page { margin: 10mm 0; }
-            body { font-family: monospace; font-size: 12px; width: 270px; margin: 0; padding: 0; overflow: hidden; color: black; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { padding: 2px 0; }
-            .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-          </style>
-        </head>
-        <body>
-          <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
-          <div class="divider"></div>
-          <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
-          <div><span class="bold">Abertura:</span> ${openedStr}</div>
-          <div><span class="bold">Fechamento:</span> ${closedStr}</div>
-          <div class="divider"></div>
-          <table>
-            <tr><td class="bold">Fundo de Abertura:</td><td class="text-right">R$ ${session.initialCash.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Vendas Dinheiro (+):</td><td class="text-right">R$ ${totals.cash.toFixed(2).replace('.', ',')}</td></tr>
-            ${pureExpenses > 0 ? `<tr><td class="bold">Despesas (Insumos) (-):</td><td class="text-right">R$ ${pureExpenses.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-            ${wages.map(w => `<tr><td class="bold">Diária (${w.name}) (-):</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
-            <tr><td class="bold">Dinheiro Esperado:</td><td class="text-right font-black">R$ ${expectedCash.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Dinheiro Contado:</td><td class="text-right">R$ ${closeCash.toFixed(2).replace('.', ',')}</td></tr>
-            <tr style="color: ${difference >= 0 ? 'green' : 'red'};"><td class="bold">Diferença Dinheiro:</td><td class="text-right bold">R$ ${difference.toFixed(2).replace('.', ',')} (${difference >= 0 ? 'Sobrando' : 'Faltando'})</td></tr>
-          </table>
-          <div class="divider"></div>
-          <table>
-            <tr><td class="bold">Fundo p/ Amanhã:</td><td class="text-right">R$ ${leftInDrawer.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Retirada (Sangria):</td><td class="text-right bold">R$ ${withdrawal.toFixed(2).replace('.', ',')}</td></tr>
-          </table>
-          <div class="divider"></div>
-          <div class="bold text-center">OUTRAS FORMAS DE PAGAMENTO</div>
-          <table>
-            <tr><td>Vendas PIX:</td><td class="text-right">R$ ${totals.pix.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td>Vendas Débito:</td><td class="text-right">R$ ${totals.debit.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td>Vendas Crédito:</td><td class="text-right">R$ ${totals.credit.toFixed(2).replace('.', ',')}</td></tr>
-            <tr class="bold"><td>Total Período:</td><td class="text-right">R$ ${totals.totalSales.toFixed(2).replace('.', ',')}</td></tr>
-          </table>
-          <div class="divider"></div>
-          <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
-          <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-          <br><br><br>
-        </body>
-        </html>
-      `;
-      // Add extra margin for thermal printers
-      html += '<div style="color: white; margin-top: 40px; border-bottom: 1px solid white;">.</div>';
-
+      const rmAcc = (s: string) => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+      const pad = (s: string, l: number, a = 'left') => { s=s.toString(); if(s.length>l) s=s.substring(0,l); if(a==='left') return s.padEnd(l, ' '); if(a==='right') return s.padStart(l, ' '); return s.padStart(Math.floor((l+s.length)/2), ' ').padEnd(l, ' '); };
+      
+      let text = pad('Chaveiro & Cutelaria', 32, 'center') + '\n';
+      text += pad('FECHAMENTO DE CAIXA', 32, 'center') + '\n';
+      text += '-'.repeat(32) + '\n';
+      text += `Operador: ${rmAcc(session.profile)}\n`;
+      text += `Abertura: ${openedStr}\n`;
+      text += `Fechamento: ${closedStr}\n`;
+      text += '-'.repeat(32) + '\n';
+      text += pad('Fundo de Abertura:', 20) + pad(session.initialCash.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Vendas Dinheiro:', 20) + pad(totals.cash.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      if (pureExpenses > 0) text += pad('Despesas (-):', 20) + pad(pureExpenses.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      wages.forEach(w => text += pad(`Diaria (${w.name}) (-):`, 20) + pad(w.amount.toFixed(2).replace('.', ','), 12, 'right') + '\n');
+      text += pad('Dinheiro Esperado:', 20) + pad(expectedCash.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Dinheiro Contado:', 20) + pad(closeCash.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Diferenca:', 20) + pad(difference.toFixed(2).replace('.', ',') + (difference >= 0 ? ' (Sobrando)' : ' (Faltando)'), 12, 'right') + '\n';
+      text += '-'.repeat(32) + '\n';
+      text += pad('Fundo p/ Amanha:', 20) + pad(leftInDrawer.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Retirada(Sangria):', 20) + pad(withdrawal.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += '-'.repeat(32) + '\n';
+      text += pad('OUTRAS FORMAS PGTO', 32, 'center') + '\n';
+      text += pad('Vendas PIX:', 20) + pad(totals.pix.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Vendas Debito:', 20) + pad(totals.debit.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Vendas Credito:', 20) + pad(totals.credit.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += pad('Total Periodo:', 20) + pad(totals.totalSales.toFixed(2).replace('.', ','), 12, 'right') + '\n';
+      text += '-'.repeat(32) + '\n';
+      text += '\nAssinatura do Operador:\n\n';
+      text += '_'.repeat(32) + '\n';
+      text += '\n\n\n\n\n\n\n.\n';
+      
       const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.send('print-html', html);
+      ipcRenderer.send('print-text', text);
     };
 
   const handleCloseRegister = async () => {
