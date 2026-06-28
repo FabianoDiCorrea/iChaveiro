@@ -464,12 +464,11 @@ export const Pos = () => {
         }, 0);
 
         const html = `
-          <div style="width: 100%;">
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-center" style="font-size: 12px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
               <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
               <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
@@ -522,16 +521,6 @@ export const Pos = () => {
                   <tr><td colspan="2" class="bold text-center" style="padding-top: 5px;">PAGAMENTO MÚLTIPLO</td></tr>
                   ${splitPayments.map(p => `<tr><td>Parcial (${p.method === 'cash' ? 'Dinheiro' : p.method === 'credit' ? 'Crédito' : p.method === 'debit' ? 'Débito' : 'PIX'}):</td><td class="text-right">R$ ${p.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
-              </table>
-              <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferencia!</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-            <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
           </div>
         `;
         const printRoot = document.createElement('div');
@@ -540,12 +529,15 @@ export const Pos = () => {
         document.body.appendChild(printRoot);
         
         setTimeout(() => {
-          window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies);
-          window.require('electron').ipcRenderer.once('print-done', () => {
+          window.print();
+          if (twoCopies) {
             setTimeout(() => {
-              if (printRoot.parentNode) document.body.removeChild(printRoot);
-            }, 10000);
-          });
+              window.print();
+              setTimeout(() => document.body.removeChild(printRoot), 1500);
+            }, 1000);
+          } else {
+            setTimeout(() => document.body.removeChild(printRoot), 1500);
+          }
         }, 300);
       }
 
@@ -574,15 +566,12 @@ export const Pos = () => {
     const pureExpenses = (totals.expenses || 0) - totalWages;
 
     const html = `
-      <div style="width: 100%;">
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-          <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
           <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
           <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
@@ -614,14 +603,14 @@ export const Pos = () => {
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
         <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
-        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
       </div>
     `;
     const printRoot = document.createElement('div');
@@ -630,12 +619,8 @@ export const Pos = () => {
     document.body.appendChild(printRoot);
     
     setTimeout(() => {
-      window.require('electron').ipcRenderer.send('print-receipt-main', false);
-      window.require('electron').ipcRenderer.once('print-done', () => {
-        setTimeout(() => {
-          if (printRoot.parentNode) document.body.removeChild(printRoot);
-        }, 10000);
-      });
+      window.print();
+      setTimeout(() => document.body.removeChild(printRoot), 1500);
     }, 300);
   };
 

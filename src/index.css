@@ -266,18 +266,15 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 @media print {
-  html, body {
-    height: auto !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
   #root {
     display: none !important;
   }
   #print-root {
     display: block !important;
-    width: 72mm;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 76mm;
     margin: 0;
     padding: 0;
     font-family: monospace;

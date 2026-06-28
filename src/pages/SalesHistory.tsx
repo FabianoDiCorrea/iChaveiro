@@ -139,6 +139,11 @@ export const SalesHistory = () => {
         </style>
       </head>
       <body>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
         ${t.type !== 'sale' ? `<div class="text-center header-title">${typeTitle.toUpperCase()}</div><div class="divider"></div>` : ''}
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
         <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
@@ -163,7 +168,7 @@ export const SalesHistory = () => {
                   <td class="text-left" valign="top">${i.quantity}x</td>
                   <td class="text-left" valign="top">
                     ${i.name}<br>
-                    <span style="font-size: 10px; color: #555;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
+                    <span style="font-size: 10px; color: #000;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
                   </td>
                   <td class="text-right" valign="top">R$ ${itemTotal.toFixed(2).replace('.', ',')}</td>
                 </tr>
@@ -183,6 +188,14 @@ export const SalesHistory = () => {
         </table>
         <div class="divider"></div>
         <div class="text-center">Obrigado pela preferência!</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="font-size: 12px;">.</div>
       </body>
       </html>
     `;
