@@ -470,7 +470,7 @@ export const Pos = () => {
             <title>Cupom Não Fiscal</title>
             <style>
               @page { margin: 5mm 2mm; }
-              body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
+              body { font-family: monospace; font-size: 13px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
               .text-center { text-align: center; }
               .text-right { text-align: right; }
               .bold { font-weight: bold; }
@@ -596,7 +596,7 @@ export const Pos = () => {
         <title>Fechamento de Caixa</title>
         <style>
           @page { margin: 5mm 2mm; }
-          body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
+          body { font-family: monospace; font-size: 13px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
           .bold { font-weight: bold; }
