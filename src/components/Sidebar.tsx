@@ -98,18 +98,7 @@ export const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-[var(--border)] text-center text-xs text-muted flex flex-col gap-2">
-        {updateAvailable ? (
-          <button 
-            onClick={() => window.open(updateAvailable.url, '_blank')}
-            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg w-full transition-all"
-            title="Baixar Nova Versão"
-          >
-            <Download size={16} />
-            Baixar Atualização ({updateAvailable.version})
-          </button>
-        ) : (
-          <div>v{packageJson.version}</div>
-        )}
+        <div>v{packageJson.version}</div>
       </div>
     </div>
   );
