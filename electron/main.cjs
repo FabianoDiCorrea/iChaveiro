@@ -1,10 +1,37 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const url = require('url');
 const { autoUpdater } = require('electron-updater');
 
 // Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
 app.commandLine.appendSwitch('kiosk-printing');
+
+ipcMain.on('print-receipt', (event, html, twoCopies) => {
+  let printWin = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  printWin.loadURL(dataUrl);
+
+  printWin.webContents.on('did-finish-load', () => {
+    printWin.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
+      if (twoCopies && success) {
+        setTimeout(() => {
+          printWin.webContents.print({ silent: true, printBackground: true }, () => {
+            printWin.close();
+          });
+        }, 1500);
+      } else {
+        printWin.close();
+      }
+    });
+  });
+});
 
 function createWindow() {
   const win = new BrowserWindow({

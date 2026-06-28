@@ -453,36 +453,36 @@ export const Pos = () => {
 
       // Imprimir Cupom
       if (shouldPrint) {
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-          const dateStr = new Date().toLocaleString('pt-BR');
-          const originalSubtotal = items.reduce((sum, i) => {
-            const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
-            return sum + (orig * i.quantity);
-          }, 0);
-          const quantityDiscount = items.reduce((sum, i) => {
-            const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
-            return sum + ((orig - i.price) * i.quantity);
-          }, 0);
+        const { ipcRenderer } = window.require('electron');
+        const dateStr = new Date().toLocaleString('pt-BR');
+        const originalSubtotal = items.reduce((sum, i) => {
+          const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+          return sum + (orig * i.quantity);
+        }, 0);
+        const quantityDiscount = items.reduce((sum, i) => {
+          const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+          return sum + ((orig - i.price) * i.quantity);
+        }, 0);
 
-          const html = `
-            <html>
-            <head>
-              <title>Cupom Não Fiscal</title>
-              <style>
-                @page { margin: 5mm 2mm; }
-                body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
-                .text-center { text-align: center; }
-                .text-right { text-align: right; }
-                .bold { font-weight: bold; }
-                .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
-                table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                th, td { padding: 2px 0; }
-                .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-              </style>
-            </head>
-            <body>
-              <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
+        const html = `
+          <html>
+          <head>
+            <title>Cupom Não Fiscal</title>
+            <style>
+              @page { margin: 5mm 2mm; }
+              body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .bold { font-weight: bold; }
+              .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+              table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              th, td { padding: 2px 0; }
+              .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+            </style>
+          </head>
+          <body>
+            <div style="height: 15mm;"></div>
+            <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
               <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
               <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
               <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
@@ -536,23 +536,12 @@ export const Pos = () => {
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
               </table>
               <div class="divider"></div>
-              <div class="text-center">Obrigado pela preferencia!</div>
-            </body>
-            </html>
-          `;
-          printWindow.document.write(html);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            if (twoCopies) {
-              if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-                printWindow.print();
-              }
-            }
-            printWindow.close();
-          }, 250);
-        }
+            <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferencia!</div>
+            <div style="height: 25mm;"></div>
+          </body>
+          </html>
+        `;
+        ipcRenderer.send('print-receipt', html, twoCopies);
       }
 
       setItems([]);
@@ -571,34 +560,34 @@ export const Pos = () => {
   };
 
   const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number }[] = []) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
-      const closedStr = new Date().toLocaleString('pt-BR');
-      const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0);
-      const difference = closeCash - expectedCash;
-      const withdrawal = closeCash - leftInDrawer;
-      const totalWages = wages.reduce((sum, w) => sum + w.amount, 0);
-      const pureExpenses = (totals.expenses || 0) - totalWages;
+    const { ipcRenderer } = window.require('electron');
+    const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
+    const closedStr = new Date().toLocaleString('pt-BR');
+    const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0);
+    const difference = closeCash - expectedCash;
+    const withdrawal = closeCash - leftInDrawer;
+    const totalWages = wages.reduce((sum, w) => sum + w.amount, 0);
+    const pureExpenses = (totals.expenses || 0) - totalWages;
 
-      const html = `
-        <html>
-        <head>
-          <title>Fechamento de Caixa</title>
-          <style>
-            @page { margin: 5mm 2mm; }
-            body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { padding: 2px 0; }
-            .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-          </style>
-        </head>
-        <body>
-          <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
+    const html = `
+      <html>
+      <head>
+        <title>Fechamento de Caixa</title>
+        <style>
+          @page { margin: 5mm 2mm; }
+          body { font-family: monospace; font-size: 11px; width: 54mm; margin: 0 auto; padding: 0; color: black; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .bold { font-weight: bold; }
+          .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { padding: 2px 0; }
+          .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+        </style>
+      </head>
+      <body>
+        <div style="height: 15mm;"></div>
+        <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
           <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
           <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
@@ -629,18 +618,12 @@ export const Pos = () => {
           </table>
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
-          <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-        </body>
-        </html>
-      `;
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    }
+        <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
+        <div style="height: 25mm;"></div>
+      </body>
+      </html>
+    `;
+    ipcRenderer.send('print-receipt', html, false);
   };
 
   const handleCloseRegister = async () => {
