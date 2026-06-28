@@ -9,6 +9,8 @@ app.commandLine.appendSwitch('kiosk-printing');
 ipcMain.on('print-receipt', (event, html, twoCopies) => {
   let printWin = new BrowserWindow({
     show: false,
+    width: 300,
+    height: 1000,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -19,17 +21,19 @@ ipcMain.on('print-receipt', (event, html, twoCopies) => {
   printWin.loadURL(dataUrl);
 
   printWin.webContents.on('did-finish-load', () => {
-    printWin.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
-      if (twoCopies && success) {
-        setTimeout(() => {
-          printWin.webContents.print({ silent: true, printBackground: true }, () => {
-            printWin.close();
-          });
-        }, 1500);
-      } else {
-        printWin.close();
-      }
-    });
+    setTimeout(() => {
+      printWin.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
+        if (twoCopies && success) {
+          setTimeout(() => {
+            printWin.webContents.print({ silent: true, printBackground: true }, () => {
+              printWin.close();
+            });
+          }, 1500);
+        } else {
+          printWin.close();
+        }
+      });
+    }, 1500); // Aguarda renderização para evitar cupom em branco
   });
 });
 
