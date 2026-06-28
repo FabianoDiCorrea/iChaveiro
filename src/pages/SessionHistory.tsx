@@ -73,9 +73,6 @@ export const SessionHistory = () => {
       const withdrawal = closeCash - (session.leftInDrawer || 0);
       const difference = closeCash - expectedCash;
 
-      const printWindow = window.open('', '_blank', 'width=400,height=600');
-      if (!printWindow) return;
-
       const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
       const closedStr = new Date(session.closedAt).toLocaleString('pt-BR');
 
@@ -84,20 +81,26 @@ export const SessionHistory = () => {
         <head>
           <title>Fechamento de Caixa</title>
           <style>
-            @page { margin: 10mm 0; }
-            body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
+            @page { margin: 5mm 2mm; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
             .text-center { text-align: center; }
+            .text-left { text-align: left; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
             .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
             table { width: 100%; border-collapse: collapse; font-size: 12px; }
             th, td { padding: 2px 0; }
-            .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+            .header-title { font-size: 18px; font-weight: 900; margin-bottom: 5px; line-height: 1.2; text-transform: uppercase; }
           </style>
         </head>
         <body>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
+          <div class="text-center bold" style="font-size: 14px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
           <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
           <div><span class="bold">Abertura:</span> ${openedStr}</div>
@@ -125,20 +128,30 @@ export const SessionHistory = () => {
             <tr><td>Vendas Crédito:</td><td class="text-right">R$ ${(session.creditSales || 0).toFixed(2).replace('.', ',')}</td></tr>
             <tr class="bold"><td>Total Período:</td><td class="text-right">R$ ${((session.cashSales || 0) + (session.pixSales || 0) + (session.debitSales || 0) + (session.creditSales || 0)).toFixed(2).replace('.', ',')}</td></tr>
           </table>
-          <div class="divider"></div>
-          <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
-          <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
+          <div class="divider" style="margin-bottom: 20px;"></div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         </body>
         </html>
       `;
 
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '300px';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      iframe.contentDocument!.write(html);
+      iframe.contentDocument!.close();
+      
       setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
+        iframe.contentWindow!.print();
+        setTimeout(() => document.body.removeChild(iframe), 2000);
+      }, 500);
     } catch (e) {
       console.error(e);
       alert('Erro ao gerar relatório.');
