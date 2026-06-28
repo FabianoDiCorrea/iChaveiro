@@ -197,13 +197,6 @@ export const SalesHistory = () => {
         <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
       </body>
       </html>
     `;

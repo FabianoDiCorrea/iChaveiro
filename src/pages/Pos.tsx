@@ -549,13 +549,6 @@ export const Pos = () => {
                 <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
                 <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
                 <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           </body>
           </html>
         `;
@@ -660,13 +653,6 @@ export const Pos = () => {
             <tr class="bold"><td>Total Período:</td><td class="text-right">R$ ${totals.totalSales.toFixed(2).replace('.', ',')}</td></tr>
           </table>
           <div class="divider" style="margin-bottom: 20px;"></div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
