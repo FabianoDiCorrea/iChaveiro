@@ -471,6 +471,8 @@ export const Pos = () => {
             <div class="text-center" style="font-size: 12px;">.</div>
             <div class="text-center" style="font-size: 12px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
+              <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
+              <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
               <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
               <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
               ${clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${clientCode}</div>` : ''}
@@ -579,6 +581,8 @@ export const Pos = () => {
         <div class="text-center" style="font-size: 12px;">.</div>
         <div class="text-center" style="font-size: 12px;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
+          <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
+          <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
           <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
           <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
