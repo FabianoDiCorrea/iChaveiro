@@ -266,11 +266,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 @media print {
-  @page {
-    size: 72mm 800mm;
-    margin: 0;
-  }
-  
   html, body {
     height: auto !important;
     overflow: visible !important;

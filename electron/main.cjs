@@ -10,7 +10,6 @@ ipcMain.on('print-receipt-main', (event, twoCopies) => {
   const printOptions = {
     silent: true,
     printBackground: true,
-    margins: { marginType: 'none' },
     deviceName: 'POS80'
   };
 
