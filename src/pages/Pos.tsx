@@ -34,6 +34,22 @@ export const Pos = () => {
   const [showLossModal, setShowLossModal] = useState(false);
   const [showStandaloneModal, setShowStandaloneModal] = useState(false);
   const [showStorageBoxModal, setShowStorageBoxModal] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+
+  useEffect(() => {
+    // @ts-ignore
+    if (window.require) {
+      // @ts-ignore
+      const { ipcRenderer } = window.require('electron');
+      const handleProgress = (event: any, percent: number) => {
+        setUpdateProgress(percent);
+      };
+      ipcRenderer.on('download-progress', handleProgress);
+      return () => {
+        ipcRenderer.removeListener('download-progress', handleProgress);
+      };
+    }
+  }, []);
 
   // Pending Sales states
   const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
@@ -2366,6 +2382,19 @@ export const Pos = () => {
                 {Math.max(0, totalAmount - splitPayments.reduce((s, p) => s + p.amount, 0)) > 0 ? 'Falta Valor' : 'Concluir'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {updateProgress !== null && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', width: '400px', textAlign: 'center', border: '1px solid #334155' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '16px', color: '#f8fafc' }}>Baixando Atualização...</h3>
+            <div style={{ width: '100%', backgroundColor: '#334155', borderRadius: '9999px', height: '16px', marginBottom: '8px', overflow: 'hidden' }}>
+              <div style={{ backgroundColor: '#22c55e', height: '100%', borderRadius: '9999px', transition: 'width 0.3s ease', width: `${updateProgress}%` }}></div>
+            </div>
+            <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>{Math.round(updateProgress)}% concluído</p>
+            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '12px' }}>O sistema pedirá para reiniciar em breve.</p>
           </div>
         </div>
       )}

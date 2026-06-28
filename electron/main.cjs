@@ -58,6 +58,12 @@ app.whenReady().then(() => {
     });
   });
 
+  autoUpdater.on('download-progress', (progressObj) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('download-progress', progressObj.percent);
+    });
+  });
+
   autoUpdater.on('error', (err) => {
     console.error('Erro no autoUpdater:', err);
   });

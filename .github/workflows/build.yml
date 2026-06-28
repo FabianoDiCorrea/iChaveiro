@@ -24,7 +24,16 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build and Publish Electron App
-        run: npm run electron:publish
+      - name: Build Electron App
+        run: npm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release and Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/iChaveiro-Setup-*.exe
+            release/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
