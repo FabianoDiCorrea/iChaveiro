@@ -6,12 +6,16 @@ const { autoUpdater } = require('electron-updater');
 // Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
 app.commandLine.appendSwitch('kiosk-printing');
 
-ipcMain.on('print-receipt-main', (event, twoCopies) => {
+ipcMain.on('print-receipt-main', (event, twoCopies, heightMicrons) => {
   const printOptions = {
     silent: true,
     printBackground: true,
     margins: { marginType: 'none' }
   };
+  
+  if (heightMicrons) {
+    printOptions.pageSize = { width: 76000, height: heightMicrons };
+  }
 
   event.sender.print(printOptions, (success) => {
     if (success && twoCopies) {

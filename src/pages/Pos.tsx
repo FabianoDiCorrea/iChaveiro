@@ -527,7 +527,10 @@ export const Pos = () => {
         document.body.appendChild(printRoot);
         
         setTimeout(() => {
-          window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies);
+          const heightPx = printRoot.offsetHeight;
+          const heightMicrons = Math.ceil((heightPx / 96) * 25400) + 10000; // +10mm extra buffer
+          
+          window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies, heightMicrons);
           window.require('electron').ipcRenderer.once('print-done', () => {
             if (printRoot.parentNode) document.body.removeChild(printRoot);
           });
@@ -600,7 +603,10 @@ export const Pos = () => {
     document.body.appendChild(printRoot);
     
     setTimeout(() => {
-      window.require('electron').ipcRenderer.send('print-receipt-main', false);
+      const heightPx = printRoot.offsetHeight;
+      const heightMicrons = Math.ceil((heightPx / 96) * 25400) + 10000; // +10mm extra buffer
+
+      window.require('electron').ipcRenderer.send('print-receipt-main', false, heightMicrons);
       window.require('electron').ipcRenderer.once('print-done', () => {
         if (printRoot.parentNode) document.body.removeChild(printRoot);
       });
