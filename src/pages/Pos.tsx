@@ -464,10 +464,13 @@ export const Pos = () => {
         }, 0);
 
         const html = `
-          <div style="padding-top: 15mm; padding-bottom: 25mm; width: 100%;">
+          <div style="width: 100%;">
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-              <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-              <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
               <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
               <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
               ${clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${clientCode}</div>` : ''}
@@ -519,6 +522,14 @@ export const Pos = () => {
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
               </table>
               <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferencia!</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+            <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
           </div>
         `;
         const printRoot = document.createElement('div');
@@ -527,10 +538,7 @@ export const Pos = () => {
         document.body.appendChild(printRoot);
         
         setTimeout(() => {
-          const heightPx = printRoot.offsetHeight;
-          const heightMicrons = Math.ceil((heightPx / 96) * 25400) + 10000; // +10mm extra buffer
-          
-          window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies, heightMicrons);
+          window.require('electron').ipcRenderer.send('print-receipt-main', twoCopies);
           window.require('electron').ipcRenderer.once('print-done', () => {
             if (printRoot.parentNode) document.body.removeChild(printRoot);
           });
@@ -562,7 +570,12 @@ export const Pos = () => {
     const pureExpenses = (totals.expenses || 0) - totalWages;
 
     const html = `
-      <div style="padding-top: 15mm; padding-bottom: 25mm; width: 100%;">
+      <div style="width: 100%;">
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
           <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
@@ -595,6 +608,14 @@ export const Pos = () => {
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
         <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
+        <div class="text-center" style="font-size: 1px; line-height: 2px;">.</div>
       </div>
     `;
     const printRoot = document.createElement('div');
@@ -603,10 +624,7 @@ export const Pos = () => {
     document.body.appendChild(printRoot);
     
     setTimeout(() => {
-      const heightPx = printRoot.offsetHeight;
-      const heightMicrons = Math.ceil((heightPx / 96) * 25400) + 10000; // +10mm extra buffer
-
-      window.require('electron').ipcRenderer.send('print-receipt-main', false, heightMicrons);
+      window.require('electron').ipcRenderer.send('print-receipt-main', false);
       window.require('electron').ipcRenderer.once('print-done', () => {
         if (printRoot.parentNode) document.body.removeChild(printRoot);
       });
