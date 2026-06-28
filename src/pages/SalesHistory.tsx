@@ -101,9 +101,6 @@ export const SalesHistory = () => {
   };
 
   const printReceipt = (t: Transaction) => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow) return alert('Erro ao abrir janela de impressão.');
-
     const dateStr = format(t.date, 'dd/MM/yyyy HH:mm');
     const operatorName = t.profile === 'chaveiro' ? 'CHAVEIRO' : 'FABIANO';
     
@@ -111,34 +108,15 @@ export const SalesHistory = () => {
     if (t.type === 'return') typeTitle = 'Comprovante de Devolução';
     else if (t.type === 'expense') typeTitle = 'Recibo de Despesa';
 
-    const getPaymentMethodName = (m: string) => {
-      if (m === 'cash') return 'Dinheiro';
-      if (m === 'pix') return 'Pix';
-      if (m === 'credit') return 'Crédito';
-      if (m === 'debit') return 'Débito';
-      if (m === 'split') return 'Múltiplo';
-      return m;
-    };
-
     const originalSubtotal = t.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
 
     const html = `
-      <html>
-      <head>
-        <title>${typeTitle}</title>
-        <style>
-          @page { margin: 10mm 0; }
-          body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
-          .text-center { text-align: center; }
-          .text-right { text-align: right; }
-          .bold { font-weight: bold; }
-          .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th, td { padding: 2px 0; }
-          .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-        </style>
-      </head>
-      <body>
+      <div style="width: 100%;">
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
         ${t.type !== 'sale' ? `<div class="text-center header-title">${typeTitle.toUpperCase()}</div><div class="divider"></div>` : ''}
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
         <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
@@ -158,44 +136,94 @@ export const SalesHistory = () => {
           <tbody>
             ${t.items.map(i => {
               const itemTotal = i.price * i.quantity;
+              const orig = i.originalPrice !== undefined ? i.originalPrice : i.price;
+              
+              if (orig > i.price) {
+                return `
+                  <tr>
+                    <td class="text-left">${i.quantity}x</td>
+                    <td class="text-left">
+                      [${i.productId || ''}] ${i.name}<br>
+                      <span style="font-size: 10px; text-decoration: line-through;">De: ${formatCurrency(orig)}</span><br>
+                      <span style="font-size: 10px;">Por: ${formatCurrency(i.price)}</span>
+                    </td>
+                    <td class="text-right">${formatCurrency(itemTotal)}</td>
+                  </tr>
+                `;
+              }
               return `
                 <tr>
-                  <td class="text-left" valign="top">${i.quantity}x</td>
-                  <td class="text-left" valign="top">
-                    ${i.name}<br>
-                    <span style="font-size: 10px; color: #555;">Vlr. Unit: R$ ${i.price.toFixed(2).replace('.', ',')}</span>
+                  <td class="text-left">${i.quantity}x</td>
+                  <td class="text-left">
+                    [${i.productId || ''}] ${i.name}<br>
+                    <span style="font-size: 10px;">Vlr. Unit: ${formatCurrency(orig)}</span>
                   </td>
-                  <td class="text-right" valign="top">R$ ${itemTotal.toFixed(2).replace('.', ',')}</td>
+                  <td class="text-right">${formatCurrency(itemTotal)}</td>
                 </tr>
               `;
             }).join('')}
           </tbody>
         </table>
+        
         <div class="divider"></div>
         <table>
-          <tr><td class="bold">Subtotal Bruto:</td><td class="text-right">R$ ${originalSubtotal.toFixed(2).replace('.', ',')}</td></tr>
-          ${t.discount && t.discount > 0 ? `<tr><td class="bold">Desconto Extra:</td><td class="text-right">-R$ ${t.discount.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          <tr><td class="bold header-title">TOTAL A PAGAR:</td><td class="text-right header-title">R$ ${t.total.toFixed(2).replace('.', ',')}</td></tr>
-          ${t.paymentMethod === 'split' && t.splitPayments ? `
-            <tr><td colspan="2" class="bold text-center" style="padding-top: 5px;">PAGAMENTO MÚLTIPLO</td></tr>
-            ${t.splitPayments.map(p => `<tr><td>Parcial (${getPaymentMethodName(p.method)}):</td><td class="text-right">R$ ${p.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
-          ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${getPaymentMethodName(t.paymentMethod)}</td></tr>`}
+          <tr><td class="bold">Subtotal Bruto:</td><td class="text-right bold">${formatCurrency(originalSubtotal)}</td></tr>
+          ${t.discount && t.discount > 0 ? `<tr><td class="bold">Desconto:</td><td class="text-right bold">${formatCurrency(t.discount)}</td></tr>` : ''}
+          ${t.type === 'expense' ? `<tr><td class="bold">TOTAL DESPESA:</td><td class="text-right bold" style="font-size: 14px;">${formatCurrency(t.total)}</td></tr>` : 
+            t.type === 'return' ? `<tr><td class="bold">TOTAL DEVOLVIDO:</td><td class="text-right bold" style="font-size: 14px;">${formatCurrency(t.total)}</td></tr>` : 
+            `<tr><td class="bold">TOTAL A PAGAR:</td><td class="text-right bold" style="font-size: 14px;">${formatCurrency(t.total)}</td></tr>`}
+          
+          ${t.type === 'sale' && t.received !== undefined ? `
+            <tr><td>Recebido:</td><td class="text-right">${formatCurrency(t.received)}</td></tr>
+            <tr><td>Troco:</td><td class="text-right">${formatCurrency(t.change || 0)}</td></tr>
+          ` : ''}
         </table>
         <div class="divider"></div>
-        <div class="text-center">Obrigado pela preferência!</div>
-      </body>
-      </html>
+        <table>
+          ${t.type === 'expense' || t.type === 'return' ? `
+            <tr><td class="bold">Assinatura:</td><td class="text-right">_____________________</td></tr>
+          ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${t.paymentMethod === 'cash' ? 'Dinheiro' : t.paymentMethod === 'credit' ? 'Crédito' : t.paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
+        </table>
+        <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferencia!</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+        <div class="text-center" style="font-size: 12px; color: transparent;">.</div>
+      </div>
     `;
 
-    printWindow.document.write(html);
-    printWindow.document.close();
-    
-    // Auto print
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    const printRoot = document.createElement('div');
+    printRoot.id = 'print-root';
+    printRoot.style.display = 'none';
+    printRoot.innerHTML = `
+      <style>
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .bold { font-weight: bold; }
+        .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        .header-title { font-size: 16px; font-weight: bold; }
+      </style>
+      ${html}
+    `;
+    document.body.appendChild(printRoot);
+
+    try {
+      (window as any).require('electron').ipcRenderer.send('print-receipt-main', false);
+      (window as any).require('electron').ipcRenderer.once('print-done', () => {
+        setTimeout(() => {
+          if (printRoot.parentNode) document.body.removeChild(printRoot);
+        }, 10000);
+      });
+    } catch (err) {
+      console.warn("Electron not found, fallback to browser print");
+      window.print();
+      if (printRoot.parentNode) document.body.removeChild(printRoot);
+    }
   };
 
   const handleSaveEdit = async () => {
