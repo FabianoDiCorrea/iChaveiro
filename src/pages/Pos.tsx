@@ -464,6 +464,22 @@ export const Pos = () => {
         }, 0);
 
         const html = `
+          <html>
+          <head>
+            <title>Cupom</title>
+            <style>
+              @page { margin: 5mm 2mm; }
+              body { font-family: monospace; font-size: 13px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .bold { font-weight: bold; }
+              .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+              table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              th, td { padding: 2px 0; }
+              .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+            </style>
+          </head>
+          <body>
             <div class="text-center" style="font-size: 12px;">.</div>
             <div class="text-center" style="font-size: 12px;">.</div>
             <div class="text-center" style="font-size: 12px;">.</div>
@@ -521,24 +537,22 @@ export const Pos = () => {
                   <tr><td colspan="2" class="bold text-center" style="padding-top: 5px;">PAGAMENTO MÚLTIPLO</td></tr>
                   ${splitPayments.map(p => `<tr><td>Parcial (${p.method === 'cash' ? 'Dinheiro' : p.method === 'credit' ? 'Crédito' : p.method === 'debit' ? 'Débito' : 'PIX'}):</td><td class="text-right">R$ ${p.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
-          </div>
+                </table>
+                <div class="divider"></div>
+                <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferência!</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="font-size: 12px;">.</div>
+          </body>
+          </html>
         `;
-        const printRoot = document.createElement('div');
-        printRoot.id = 'print-root';
-        printRoot.innerHTML = html;
-        document.body.appendChild(printRoot);
-        
-        setTimeout(() => {
-          window.print();
-          if (twoCopies) {
-            setTimeout(() => {
-              window.print();
-              setTimeout(() => document.body.removeChild(printRoot), 1500);
-            }, 1000);
-          } else {
-            setTimeout(() => document.body.removeChild(printRoot), 1500);
-          }
-        }, 300);
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.send('print-receipt', html, twoCopies);
       }
 
       setItems([]);
@@ -602,27 +616,21 @@ export const Pos = () => {
           </table>
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
-        <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-      </div>
-    `;
-    const printRoot = document.createElement('div');
-    printRoot.id = 'print-root';
-    printRoot.innerHTML = html;
-    document.body.appendChild(printRoot);
-    
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => document.body.removeChild(printRoot), 1500);
-    }, 300);
-  };
+          <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-center" style="font-size: 12px;">.</div>
+        </body>
+        </html>
+      `;
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('print-receipt', html, false);
+    };
 
   const handleCloseRegister = async () => {
     if (!activeSession) return;

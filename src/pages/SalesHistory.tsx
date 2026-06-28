@@ -127,8 +127,8 @@ export const SalesHistory = () => {
       <head>
         <title>${typeTitle}</title>
         <style>
-          @page { margin: 10mm 0; }
-          body { font-family: monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 0 10px; color: black; }
+          @page { margin: 10mm 2mm; }
+          body { font-family: monospace; font-size: 13px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
           .bold { font-weight: bold; }
@@ -187,7 +187,7 @@ export const SalesHistory = () => {
           ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${getPaymentMethodName(t.paymentMethod)}</td></tr>`}
         </table>
         <div class="divider"></div>
-        <div class="text-center">Obrigado pela preferência!</div>
+        <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferência!</div>
         <div class="text-center" style="font-size: 12px;">.</div>
         <div class="text-center" style="font-size: 12px;">.</div>
         <div class="text-center" style="font-size: 12px;">.</div>
@@ -200,15 +200,8 @@ export const SalesHistory = () => {
       </html>
     `;
 
-    printWindow.document.write(html);
-    printWindow.document.close();
-    
-    // Auto print
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    const { ipcRenderer } = window.require('electron');
+    ipcRenderer.send('print-receipt', html, false);
   };
 
   const handleSaveEdit = async () => {
