@@ -1,78 +1,107 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { db, type ServiceType, type PaymentMethod, type TransactionItem } from '../db/db';
-import type { Profile } from '../db/db';
-import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag, Package, Printer } from 'lucide-react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { RegisterLossModal } from '../components/RegisterLossModal';
-import { runAutoBackup } from '../db/sync';
-import { StandaloneReceiptModal } from '../components/StandaloneReceiptModal';
-import { StorageBoxModal } from '../components/StorageBoxModal';
-import { differenceInDays } from 'date-fns';
+const printClosingReceipt = () => {
+  const removeAccents = (str) => {
+    return str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+  };
 
-export const Pos = () => {
-  const [transactionProfile, setTransactionProfile] = useState<Profile>(() => {
-    return (localStorage.getItem('ichaveiro_last_profile') as Profile) || 'chaveiro';
+  const pad = (str, length, align = 'left') => {
+    str = str.toString();
+    if (str.length > length) str = str.substring(0, length);
+    if (align === 'left') return str.padEnd(length, ' ');
+    if (align === 'right') return str.padStart(length, ' ');
+    return str.padStart(Math.floor((length + str.length) / 2), ' ').padEnd(length, ' ');
+  };
+
+  let text = "";
+  text += pad("FECHAMENTO DE CAIXA", 32, 'center') + "\n";
+  text += "-".repeat(32) + "\n";
+  text += `Data: ${new Date().toLocaleString('pt-BR')}\n`;
+  text += `Operador: ${removeAccents(currentProfile)}\n`;
+  text += "-".repeat(32) + "\n";
+  
+  text += pad("Fundo de Caixa:", 20) + pad(formatCurrency(openingBalance), 12, 'right') + "\n";
+  text += "\n";
+  text += pad("Vendas (Dinheiro):", 20) + pad(formatCurrency(salesCash), 12, 'right') + "\n";
+  text += pad("Vendas (Pix):", 20) + pad(formatCurrency(salesPix), 12, 'right') + "\n";
+  text += pad("Vendas (Debito):", 20) + pad(formatCurrency(salesDebit), 12, 'right') + "\n";
+  text += pad("Vendas (Credito):", 20) + pad(formatCurrency(salesCredit), 12, 'right') + "\n";
+  text += "-".repeat(32) + "\n";
+  
+  text += pad("Total Entradas:", 20) + pad(formatCurrency(totalEntradas), 12, 'right') + "\n";
+  text += pad("Total Retiradas:", 20) + pad(formatCurrency(totalRetiradas), 12, 'right') + "\n";
+  text += pad("Total Perdas:", 20) + pad(formatCurrency(totalPerdas), 12, 'right') + "\n";
+  text += pad("Lucro do Dia:", 20) + pad(formatCurrency(lucro), 12, 'right') + "\n";
+  text += "-".repeat(32) + "\n";
+  
+  text += pad("TOTAL CAIXA ESPERADO:", 22) + pad(formatCurrency(totalEsperado), 10, 'right') + "\n";
+  text += pad("TOTAL CAIXA REAL:", 22) + pad(formatCurrency(closingBalance), 10, 'right') + "\n";
+  
+  text += "-".repeat(32) + "\n";
+  text += pad("Diferenca:", 20) + pad(formatCurrency(closingBalance - totalEsperado), 12, 'right') + "\n";
+  
+  text += "\n\n\n\n\n\n.\n";
+  
+  const { ipcRenderer } = (window as any).require('electron');
+  ipcRenderer.send('print-text', text);
+};
+
+  const pad = (str, length, align = 'left') => {
+    str = str.toString();
+    if (str.length > length) str = str.substring(0, length);
+    if (align === 'left') return str.padEnd(length, ' ');
+    if (align === 'right') return str.padStart(length, ' ');
+    return str.padStart(Math.floor((length + str.length) / 2), ' ').padEnd(length, ' ');
+  };
+
+  let text = "";
+  text += pad("Chaveiro & Cutelaria", 32, 'center') + "\n";
+  text += pad("do Lidio e Fabiano", 32, 'center') + "\n";
+  text += pad("Rua Cardoso de Morais, F. 302", 32, 'center') + "\n";
+  text += pad("Bonsucesso - RJ", 32, 'center') + "\n";
+  text += pad("Tel: (21) 98601-6721", 32, 'center') + "\n";
+  text += "-".repeat(32) + "\n";
+  text += `Data: ${new Date().toLocaleString('pt-BR')}\n`;
+  text += `Venda: #${Date.now().toString().slice(-6)}\n`;
+  text += `Operador: ${removeAccents(currentProfile)}\n`;
+  text += "-".repeat(32) + "\n";
+  text += pad("Qtd", 4) + " " + pad("Item", 17) + " " + pad("Total", 8, 'right') + "\n";
+  
+  items.forEach((item) => {
+    const q = `${item.quantity}x`;
+    const n = removeAccents(item.name);
+    const t = formatCurrency(item.quantity * item.unitPrice);
+    text += pad(q, 4) + " " + pad(n, 17) + " " + pad(t, 8, 'right') + "\n";
   });
-
-  useEffect(() => {
-    localStorage.setItem('ichaveiro_last_profile', transactionProfile);
-  }, [transactionProfile]);
-  const [items, setItems] = useState<TransactionItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number }[]>([]);
-  const [currentSplitMethod, setCurrentSplitMethod] = useState<PaymentMethod>('pix');
-  const [currentSplitAmount, setCurrentSplitAmount] = useState<string>('');
-  const [clientCode, setClientCode] = useState('');
-  const [searchProduct, setSearchProduct] = useState('');
-  const [discount, setDiscount] = useState<string>('');
-  const [cashReceived, setCashReceived] = useState<string>('');
-  const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showPrintModal, setShowPrintModal] = useState(false);
-  const [printTwoCopies, setPrintTwoCopies] = useState(false);
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [showLossModal, setShowLossModal] = useState(false);
-  const [showStandaloneModal, setShowStandaloneModal] = useState(false);
-  const [showStorageBoxModal, setShowStorageBoxModal] = useState(false);
-
-  // Pending Sales states
-  const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
-  const [showPendingModal, setShowPendingModal] = useState(false);
-  const [pendingClientName, setPendingClientName] = useState('');
-  const [pendingClientPhone, setPendingClientPhone] = useState('');
-
-  // Cash Register (Caixa) Session states
-  const [openRegisterCash, setOpenRegisterCash] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
-  const [showCloseRegisterModal, setShowCloseRegisterModal] = useState(false);
-  const [closeRegisterCash, setCloseRegisterCash] = useState<string>('');
-  const [selectedEmployeesToPay, setSelectedEmployeesToPay] = useState<number[]>([]);
-  const [customWages, setCustomWages] = useState<Record<number, string>>({});
-  const employees = useLiveQuery(() => db.employees?.toArray() || []);
-  const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>(() => localStorage.getItem('ichaveiro_last_drawer_left') || '0,00');
-
-  // Expense states
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expenseAmount, setExpenseAmount] = useState('');
-  const [expenseDescription, setExpenseDescription] = useState('');
-
-  const activeSession = useLiveQuery(
-    async () => {
-      const sess = await db.cashSessions.where('profile').equals(transactionProfile).filter(s => s.status === 'open').first();
-      return sess || null;
-    },
-    [transactionProfile]
-  );
-
-  const sessionTransactions = useLiveQuery(async () => {
-    if (!activeSession) return [];
-    return await db.transactions
-      .where('date')
-      .aboveOrEqual(activeSession.openedAt)
-      .toArray();
-  }, [activeSession]);
-
-  const sessionTotals = React.useMemo(() => {
-    if (!sessionTransactions) return { cash: 0, pix: 0, debit: 0, credit: 0, totalSales: 0, expenses: 0 };
+  
+  text += "-".repeat(32) + "\n";
+  text += pad("Subtotal:", 16) + pad(formatCurrency(subtotalBruto), 16, 'right') + "\n";
+  
+  if (discountValue > 0) {
+    text += pad("Desconto:", 16) + pad("-" + formatCurrency(discountValue), 16, 'right') + "\n";
+  }
+  text += pad("TOTAL A PAGAR:", 16) + pad(formatCurrency(total), 16, 'right') + "\n";
+  
+  if (receivedAmount > 0) {
+    text += pad("Recebido:", 16) + pad(formatCurrency(receivedAmount), 16, 'right') + "\n";
+    text += pad("Troco:", 16) + pad(formatCurrency(change), 16, 'right') + "\n";
+  }
+  
+  if (observations) {
+    text += "-".repeat(32) + "\n";
+    text += `Obs: ${removeAccents(observations)}\n`;
+  }
+  
+  text += "\n" + pad("Obrigado pela preferencia!", 32, 'center') + "\n";
+  text += "\n\n\n\n\n\n.\n";
+  
+  const { ipcRenderer } = (window as any).require('electron');
+  ipcRenderer.send('print-text', text);
+  
+  if (twoCopies) {
+    if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
+      ipcRenderer.send('print-text', text);
+    }
+  }
+};
     const filteredSales = sessionTransactions.filter(t => t.profile === transactionProfile && t.type === 'sale');
     const filteredExpenses = sessionTransactions.filter(t => t.profile === transactionProfile && t.type === 'expense');
     

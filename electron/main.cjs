@@ -63,6 +63,16 @@ app.whenReady().then(() => {
   });
 });
 
+ipcMain.on('print-text', (event, text) => {
+  const { exec } = require('child_process');
+  const fs = require('fs');
+  const path = require('path');
+  const tmpPath = path.join(app.getPath('temp'), 'receipt.txt');
+  fs.writeFileSync(tmpPath, text, 'utf8');
+  exec(`powershell -Command "Get-Content '${tmpPath}' -Encoding UTF8 | Out-Printer"`, (err) => {
+    if (err) console.error("Text print error:", err);
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
