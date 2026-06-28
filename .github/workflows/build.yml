@@ -26,6 +26,8 @@ jobs:
 
       - name: Build Electron App
         run: npm run electron:build
+        env:
+          CI: false
 
       - name: Create Release and Upload
         uses: softprops/action-gh-release@v2
