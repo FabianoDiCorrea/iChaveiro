@@ -469,26 +469,27 @@ export const Pos = () => {
             <title>Cupom</title>
             <style>
               @page { margin: 5mm 2mm; }
-              body { font-family: monospace; font-size: 13px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
               .text-center { text-align: center; }
+              .text-left { text-align: left; }
               .text-right { text-align: right; }
               .bold { font-weight: bold; }
               .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
               table { width: 100%; border-collapse: collapse; font-size: 12px; }
               th, td { padding: 2px 0; }
-              .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+              .header-title { font-size: 18px; font-weight: 900; margin-bottom: 5px; line-height: 1.2; text-transform: uppercase; }
             </style>
           </head>
           <body>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
-            <div class="text-center" style="font-size: 12px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-              <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-              <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
-              <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
+              <div class="text-center bold" style="font-size: 12px; margin-top: 5px;">Rua Cardoso de Morais, Frente ao 202</div>
+              <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
+              <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
               <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
               ${clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${clientCode}</div>` : ''}
               <div class="divider"></div>
@@ -539,15 +540,15 @@ export const Pos = () => {
                 ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${paymentMethod === 'cash' ? 'Dinheiro' : paymentMethod === 'credit' ? 'Crédito' : paymentMethod === 'debit' ? 'Débito' : 'PIX'}</td></tr>`}
                 </table>
                 <div class="divider"></div>
-                <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferência!</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
-                <div class="text-center" style="font-size: 12px;">.</div>
+                <div class="text-center" style="margin-bottom: 10px; font-weight: bold; font-size: 13px;">Obrigado pela preferência!</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+                <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
           </body>
           </html>
         `;
@@ -600,13 +601,30 @@ export const Pos = () => {
     const pureExpenses = (totals.expenses || 0) - totalWages;
 
     const html = `
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
+      <html>
+      <head>
+        <title>Fechamento de Caixa</title>
+        <style>
+          @page { margin: 5mm 2mm; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
+          .text-center { text-align: center; }
+          .text-left { text-align: left; }
+          .text-right { text-align: right; }
+          .bold { font-weight: bold; }
+          .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { padding: 2px 0; }
+          .header-title { font-size: 18px; font-weight: 900; margin-bottom: 5px; line-height: 1.2; text-transform: uppercase; }
+        </style>
+      </head>
+      <body>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center bold" style="font-size: 13px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
+          <div class="text-center bold" style="font-size: 14px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
           <div class="divider"></div>
           <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
           <div><span class="bold">Abertura:</span> ${openedStr}</div>
@@ -637,14 +655,14 @@ export const Pos = () => {
           <div class="divider"></div>
           <div class="text-center" style="margin-top: 10px;">Assinatura do Operador:</div>
           <div style="border-bottom: 1px solid #000; margin-top: 35px; width: 80%; margin-left: auto; margin-right: auto;"></div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
-          <div class="text-center" style="font-size: 12px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         </body>
         </html>
       `;

@@ -128,27 +128,28 @@ export const SalesHistory = () => {
         <title>${typeTitle}</title>
         <style>
           @page { margin: 10mm 2mm; }
-          body { font-family: monospace; font-size: 13px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; width: 76mm; margin: 0 auto; padding: 0; color: black; }
           .text-center { text-align: center; }
+          .text-left { text-align: left; }
           .text-right { text-align: right; }
           .bold { font-weight: bold; }
           .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
           th, td { padding: 2px 0; }
-          .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+          .header-title { font-size: 18px; font-weight: 900; margin-bottom: 5px; line-height: 1.2; text-transform: uppercase; }
         </style>
       </head>
       <body>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         ${t.type !== 'sale' ? `<div class="text-center header-title">${typeTitle.toUpperCase()}</div><div class="divider"></div>` : ''}
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-        <div class="text-center" style="font-size: 10px; margin-top: 3px;">Rua Cardoso de Morais, Frente ao 202</div>
-        <div class="text-center" style="font-size: 10px;">Bonsucesso - RJ (Frente ao Caçula)</div>
-        <div class="text-center" style="font-size: 10px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
+        <div class="text-center bold" style="font-size: 12px; margin-top: 5px;">Rua Cardoso de Morais, Frente ao 202</div>
+        <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
+        <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
         <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
         ${t.clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${t.clientCode}</div>` : ''}
         <div class="divider"></div>
@@ -187,15 +188,15 @@ export const SalesHistory = () => {
           ` : `<tr><td class="bold">Forma de Pagto:</td><td class="text-right bold uppercase">${getPaymentMethodName(t.paymentMethod)}</td></tr>`}
         </table>
         <div class="divider"></div>
-        <div class="text-center" style="margin-bottom: 10px;">Obrigado pela preferência!</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
-        <div class="text-center" style="font-size: 12px;">.</div>
+        <div class="text-center" style="margin-bottom: 10px; font-weight: bold; font-size: 13px;">Obrigado pela preferência!</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+        <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
       </body>
       </html>
     `;
