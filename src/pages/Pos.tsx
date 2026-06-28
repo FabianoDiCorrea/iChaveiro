@@ -542,13 +542,26 @@ export const Pos = () => {
           // Add extra margin for thermal printers
           html += '<br><br><br><br><br><br><div style="visibility: hidden;">.</div>';
 
-          const { ipcRenderer } = (window as any).require('electron');
-          ipcRenderer.send('print-html', html);
-          
-          if (twoCopies) {
-            if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
-              ipcRenderer.send('print-html', html);
-            }
+          const printRoot = document.getElementById('print-root');
+          if (printRoot) {
+            printRoot.innerHTML = html;
+            setTimeout(() => {
+              window.print();
+              setTimeout(() => {
+                printRoot.innerHTML = '';
+                if (twoCopies) {
+                  if (window.confirm("Corte a 1ª via (Cliente) e clique em OK para imprimir a 2ª via (Chaveiro).")) {
+                    printRoot.innerHTML = html;
+                    setTimeout(() => {
+                      window.print();
+                      setTimeout(() => {
+                        printRoot.innerHTML = '';
+                      }, 500);
+                    }, 500);
+                  }
+                }
+              }, 500);
+            }, 500);
           }
       }
 
@@ -632,8 +645,16 @@ export const Pos = () => {
       // Add extra margin for thermal printers
       html += '<br><br><br><br><br><div style="visibility: hidden;">.</div>';
 
-      const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.send('print-html', html);
+      const printRoot = document.getElementById('print-root');
+      if (printRoot) {
+        printRoot.innerHTML = html;
+        setTimeout(() => {
+          window.print();
+          setTimeout(() => {
+            printRoot.innerHTML = '';
+          }, 500);
+        }, 500);
+      }
     };
 
   const handleCloseRegister = async () => {

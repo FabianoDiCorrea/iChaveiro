@@ -6,20 +6,6 @@ const { autoUpdater } = require('electron-updater');
 // Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
 app.commandLine.appendSwitch('kiosk-printing');
 
-ipcMain.on('print-html', (event, html) => {
-  const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
-  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-  win.webContents.on('did-finish-load', () => {
-    setTimeout(() => {
-      win.webContents.print({ silent: true }, (success, failureReason) => {
-        if (!success) console.error('Erro na impressão:', failureReason);
-        // DO NOT close immediately, it corrupts the print spool on Windows!
-        setTimeout(() => win.close(), 2000);
-      });
-    }, 500);
-  });
-});
-
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,

@@ -164,8 +164,16 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
       // Add extra margin for thermal printers
       html += '<br><br><br><br><br><br><div style="visibility: hidden;">.</div>';
       
-      const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.send('print-html', html);
+      const printRoot = document.getElementById('print-root');
+      if (printRoot) {
+        printRoot.innerHTML = html;
+        setTimeout(() => {
+          window.print();
+          setTimeout(() => {
+            printRoot.innerHTML = '';
+          }, 500);
+        }, 500);
+      }
       
       setItems([]);
       setClientName('');
