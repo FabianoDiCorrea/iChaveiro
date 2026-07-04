@@ -116,7 +116,7 @@ export const StandaloneReceiptModal: React.FC<StandaloneReceiptModalProps> = ({ 
           <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
           <div class="text-center bold" style="font-size: 12px; margin-top: 5px;">Rua Cardoso de Morais, Frente ao 202</div>
           <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
-          <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 98601-6721 (WhatsApp)</div>
+          <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 96738-5841 (WhatsApp)</div>
           <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
           ${clientName ? `<div class="divider"></div><div class="bold">Cliente: ${clientName}</div>` : ''}
           <div class="divider"></div>
