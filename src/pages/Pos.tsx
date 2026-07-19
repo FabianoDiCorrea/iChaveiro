@@ -692,7 +692,7 @@ export const Pos = () => {
     const wageDetails: { name: string, amount: number }[] = [];
     
     try {
-      if (selectedEmployeesToPay.length > 0 && employees) {
+      if (activeSession.profile === 'chaveiro' && selectedEmployeesToPay.length > 0 && employees) {
         const empsToPay = employees.filter(e => selectedEmployeesToPay.includes(e.id!));
         for (const emp of empsToPay) {
           const wageStr = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
@@ -1968,10 +1968,10 @@ export const Pos = () => {
             </h2>
 
             {(() => {
-              const pendingWages = employees?.filter(e => selectedEmployeesToPay.includes(e.id!)).reduce((sum, e) => {
+              const pendingWages = activeSession.profile === 'chaveiro' ? employees?.filter(e => selectedEmployeesToPay.includes(e.id!)).reduce((sum, e) => {
                 const wageStr = customWages[e.id!] !== undefined ? customWages[e.id!] : e.dailyWage.toFixed(2).replace('.', ',');
                 return sum + parseCurrency(wageStr);
-              }, 0) || 0;
+              }, 0) || 0 : 0;
               const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
               const expectedNetCash = expectedGrossCash - pendingWages;
               

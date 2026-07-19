@@ -486,7 +486,7 @@ export const Reports = () => {
 
   expenses.forEach(t => {
     t.items.forEach(item => {
-      if (item.name.startsWith('Diária:')) {
+      if (item.name.startsWith('Pagamento de Diária:')) {
         totalWages += item.total;
       } else {
         pureExpenses += item.total;
