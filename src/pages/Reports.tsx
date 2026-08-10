@@ -111,23 +111,27 @@ export const Reports = () => {
   const { start, end } = React.useMemo(() => getDates(), [getDates]);
 
   const transactions = useLiveQuery(
-    () => {
-      let query = db.transactions.where('date').between(start, end);
-      if (viewProfile !== 'todos') {
-        return query.filter(t => t.profile === viewProfile).toArray();
-      }
-      return query.toArray();
+    async () => {
+      const all = await db.transactions.toArray();
+      return all.filter(t => {
+        const d = new Date(t.date);
+        const matchDate = d >= start && d <= end;
+        const matchProfile = viewProfile === 'todos' || t.profile === viewProfile;
+        return matchDate && matchProfile;
+      });
     },
     [start.getTime(), end.getTime(), viewProfile]
   );
 
   const losses = useLiveQuery(
-    () => {
-      let query = db.losses.where('date').between(start, end);
-      if (viewProfile !== 'todos') {
-        return query.filter(l => l.operator === viewProfile).toArray();
-      }
-      return query.toArray();
+    async () => {
+      const all = await db.losses.toArray();
+      return all.filter(l => {
+        const d = new Date(l.date);
+        const matchDate = d >= start && d <= end;
+        const matchProfile = viewProfile === 'todos' || l.operator === viewProfile;
+        return matchDate && matchProfile;
+      });
     },
     [start.getTime(), end.getTime(), viewProfile]
   ) || [];
@@ -135,8 +139,11 @@ export const Reports = () => {
   // Always receives a specific profile (never 'todos') and detail level
   const printThermalReport = async (profileToPrint: Profile, isDetailed: boolean) => {
     // Filter transactions for this specific profile
-    const allTx = await db.transactions.where('date').between(start, end).toArray();
-    const txForProfile = allTx.filter(t => t.profile === profileToPrint);
+    const allTx = await db.transactions.toArray();
+    const txForProfile = allTx.filter(t => {
+      const d = new Date(t.date);
+      return d >= start && d <= end && t.profile === profileToPrint;
+    });
 
     if (txForProfile.length === 0) return alert(`Nenhuma transação de ${profileToPrint === 'chaveiro' ? 'Chaveiro' : 'Fabiano'} no período.`);
 
@@ -352,8 +359,11 @@ export const Reports = () => {
 
   // Always receives a specific profile (never 'todos')
   const generatePDF = async (profileToPrint: Profile, isDetailed: boolean) => {
-    const allTx = await db.transactions.where('date').between(start, end).toArray();
-    const txForProfile = allTx.filter(t => t.profile === profileToPrint);
+    const allTx = await db.transactions.toArray();
+    const txForProfile = allTx.filter(t => {
+      const d = new Date(t.date);
+      return d >= start && d <= end && t.profile === profileToPrint;
+    });
 
     if (txForProfile.length === 0) return alert(`Nenhuma transação de ${profileToPrint === 'chaveiro' ? 'Chaveiro' : 'Fabiano'} no período.`);
 
