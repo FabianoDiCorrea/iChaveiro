@@ -554,6 +554,7 @@ export const Reports = () => {
   const netTotal = totalGrossSales - totalReturns - totalDiscounts;
   const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
   const categorizedItems = getCategorizedItems(sales);
+  const totalPaymentMethods = totalCash + totalPix + totalDebit + totalCredit;
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
