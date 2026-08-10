@@ -5,7 +5,81 @@ import type { Profile } from '../db/db';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
 import { Download, Calendar, Printer, X, Receipt } from 'lucide-react';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+export const getCategorizedItems = (sales: any[]) => {
+  const catTotals: Record<string, { name: string; qty: number; val: number }> = {
+    key: { name: 'Chaves Comuns', qty: 0, val: 0 },
+    key_tetra: { name: 'Chaves Tetra', qty: 0, val: 0 },
+    spring: { name: 'Molinhas', qty: 0, val: 0 },
+    screw: { name: 'Parafusos', qty: 0, val: 0 },
+    plier_sharp: { name: 'Afiações Alicate', qty: 0, val: 0 },
+    plier: { name: 'Venda Alicates', qty: 0, val: 0 },
+    scissor: { name: 'Tesouras', qty: 0, val: 0 },
+    scissor_nail: { name: 'Tesourinhas de Unha', qty: 0, val: 0 },
+    knife: { name: 'Facas', qty: 0, val: 0 },
+  };
+
+  const customTotals: Record<string, { name: string; qty: number; val: number }> = {};
+
+  sales.forEach(t => {
+    t.items.forEach((item: any) => {
+      const nameLower = (item.name || '').toLowerCase();
+      const svc = item.service;
+
+      if (svc === 'key' || nameLower.includes('chave')) {
+        if (nameLower.includes('tetra')) {
+          catTotals.key_tetra.qty += item.quantity;
+          catTotals.key_tetra.val += item.total;
+        } else {
+          catTotals.key.qty += item.quantity;
+          catTotals.key.val += item.total;
+        }
+      } else if (svc === 'spring' || nameLower.includes('molinha') || nameLower.includes('mola ')) {
+        catTotals.spring.qty += item.quantity;
+        catTotals.spring.val += item.total;
+      } else if (svc === 'screw' || nameLower.includes('parafuso')) {
+        catTotals.screw.qty += item.quantity;
+        catTotals.screw.val += item.total;
+      } else if (svc === 'plier' || nameLower.includes('alicate')) {
+        if (nameLower.includes('afiação') || nameLower.includes('afiacao') || nameLower.includes('afiaçao') || nameLower.includes('afiador') || t.profile === 'chaveiro' || item.productId === 1) {
+          catTotals.plier_sharp.qty += item.quantity;
+          catTotals.plier_sharp.val += item.total;
+        } else {
+          catTotals.plier.qty += item.quantity;
+          catTotals.plier.val += item.total;
+        }
+      } else if (svc === 'scissor' || nameLower.includes('tesoura')) {
+        if (item.productId === 5 || item.code === '5' || nameLower.includes('unha') || nameLower.includes('tesourinha')) {
+          catTotals.scissor_nail.qty += item.quantity;
+          catTotals.scissor_nail.val += item.total;
+        } else {
+          catTotals.scissor.qty += item.quantity;
+          catTotals.scissor.val += item.total;
+        }
+      } else if (svc === 'knife' || nameLower.includes('faca')) {
+        catTotals.knife.qty += item.quantity;
+        catTotals.knife.val += item.total;
+      } else {
+        const itemName = item.name || 'Outros';
+        if (!customTotals[itemName]) {
+          customTotals[itemName] = { name: itemName, qty: 0, val: 0 };
+        }
+        customTotals[itemName].qty += item.quantity;
+        customTotals[itemName].val += item.total;
+      }
+    });
+  });
+
+  const list: { name: string; qty: number; val: number }[] = [];
+  ['key', 'key_tetra', 'spring', 'screw', 'plier_sharp', 'plier', 'scissor', 'scissor_nail', 'knife'].forEach(k => {
+    if (catTotals[k].qty > 0) list.push(catTotals[k]);
+  });
+
+  Object.values(customTotals).forEach(c => {
+    if (c.qty > 0) list.push(c);
+  });
+
+  return list;
+};
 
 export const Reports = () => {
   const [viewProfile, setViewProfile] = React.useState<Profile | 'todos'>('chaveiro');
@@ -173,18 +247,13 @@ export const Reports = () => {
           <tr><td>IMPRESSO EM:</td><td class="text-right">${dateStr}</td></tr>
         </table>
         
-        <div class="divider"></div>
+        <div className="divider"></div>
         <div class="bold text-center">RESUMO POR CATEGORIA</div>
         <div class="mini-divider"></div>
         <table>
-          ${serviceQtys.key > 0 ? `<tr><td>Chaves (${serviceQtys.key} un):</td><td class="text-right font-mono">R$ ${serviceTotals.key.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.spring > 0 ? `<tr><td>Molinhas (${serviceQtys.spring} un):</td><td class="text-right font-mono">R$ ${serviceTotals.spring.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.screw > 0 ? `<tr><td>Parafusos (${serviceQtys.screw} un):</td><td class="text-right font-mono">R$ ${serviceTotals.screw.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.plier_sharp > 0 ? `<tr><td>Afiações Alicate (${serviceQtys.plier_sharp}):</td><td class="text-right font-mono">R$ ${serviceTotals.plier_sharp.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.plier > 0 ? `<tr><td>Venda Alicates (${serviceQtys.plier}):</td><td class="text-right font-mono">R$ ${serviceTotals.plier.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.scissor > 0 ? `<tr><td>Tesouras (${serviceQtys.scissor}):</td><td class="text-right font-mono">R$ ${serviceTotals.scissor.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.knife > 0 ? `<tr><td>Facas (${serviceQtys.knife}):</td><td class="text-right font-mono">R$ ${serviceTotals.knife.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-          ${serviceQtys.other > 0 ? `<tr><td>Outros (${serviceQtys.other}):</td><td class="text-right font-mono">R$ ${serviceTotals.other.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          ${getCategorizedItems(sales).map(item => `
+            <tr><td>${item.name} (${item.qty} un):</td><td class="text-right font-mono">R$ ${item.val.toFixed(2).replace('.', ',')}</td></tr>
+          `).join('')}
         </table>
 
         <div class="divider"></div>
@@ -212,6 +281,8 @@ export const Reports = () => {
           <tr><td>PIX:</td><td class="text-right font-mono">R$ ${totalPix.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Débito:</td><td class="text-right font-mono">R$ ${totalDebito.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td>Crédito:</td><td class="text-right font-mono">R$ ${totalCredito.toFixed(2).replace('.', ',')}</td></tr>
+          <tr class="bold" style="border-top: 1px dotted #555;"><td>TOTAL MAQUININHA:</td><td class="text-right font-mono">R$ ${(totalPix + totalDebito + totalCredito).toFixed(2).replace('.', ',')}</td></tr>
+          <tr class="bold" style="border-top: 1px dashed #000;"><td>TOTAL RECEBIDO:</td><td class="text-right font-mono">R$ ${(totalDinheiro + totalPix + totalDebito + totalCredito).toFixed(2).replace('.', ',')}</td></tr>
         </table>
 
         ${isDetailed ? `
@@ -325,18 +396,6 @@ export const Reports = () => {
       }
 
       t.items.forEach(item => {
-        let svc = item.service;
-        if (svc === 'plier') {
-          const nameLower = item.name.toLowerCase();
-          if (nameLower.includes('afiação') || nameLower.includes('afiacao') || nameLower.includes('afiaçao') || nameLower.includes('afiador') || t.profile === 'chaveiro' || item.productId === 1) {
-            svc = 'plier_sharp' as any;
-          }
-        }
-        if (svc in serviceTotals) {
-          serviceTotals[svc as keyof typeof serviceTotals] += item.total;
-        } else {
-          serviceTotals.other += item.total;
-        }
         totalCosts += (item.cost || 0) * item.quantity;
       });
     });
@@ -345,16 +404,10 @@ export const Reports = () => {
     const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
     const netTotal = totalSales - totalReturns - totalDiscounts;
     const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
+    const pdfCatList = getCategorizedItems(sales);
 
     const summaryData = [
-      ['Chaves', `R$ ${serviceTotals.key.toFixed(2).replace('.', ',')}`],
-      ['Molinhas de Alicate', `R$ ${serviceTotals.spring.toFixed(2).replace('.', ',')}`],
-      ['Parafusos de Alicate', `R$ ${serviceTotals.screw.toFixed(2).replace('.', ',')}`],
-      ['Afiações Alicate', `R$ ${serviceTotals.plier_sharp.toFixed(2).replace('.', ',')}`],
-      ['Venda Alicates', `R$ ${serviceTotals.plier.toFixed(2).replace('.', ',')}`],
-      ['Tesouras', `R$ ${serviceTotals.scissor.toFixed(2).replace('.', ',')}`],
-      ['Facas', `R$ ${serviceTotals.knife.toFixed(2).replace('.', ',')}`],
-      ['Outros', `R$ ${serviceTotals.other.toFixed(2).replace('.', ',')}`],
+      ...pdfCatList.map(item => [`${item.name} (${item.qty} un)`, `R$ ${item.val.toFixed(2).replace('.', ',')}`]),
       ['---', '---'],
       ['Vendas Brutas (Subtotal)', `R$ ${totalSales.toFixed(2).replace('.', ',')}`],
       ['Descontos', `- R$ ${totalDiscounts.toFixed(2).replace('.', ',')}`],
@@ -369,6 +422,8 @@ export const Reports = () => {
       ['Vendas em PIX', `R$ ${totalPix.toFixed(2).replace('.', ',')}`],
       ['Vendas em Debito', `R$ ${totalDebito.toFixed(2).replace('.', ',')}`],
       ['Vendas em Credito', `R$ ${totalCredito.toFixed(2).replace('.', ',')}`],
+      ['Total Maquininha (Pix + Cartoes)', `R$ ${(totalPix + totalDebito + totalCredito).toFixed(2).replace('.', ',')}`],
+      ['Total Recebido', `R$ ${(totalDinheiro + totalPix + totalDebito + totalCredito).toFixed(2).replace('.', ',')}`],
     ];
 
     autoTable(doc, {
@@ -498,7 +553,7 @@ export const Reports = () => {
   const totalExpenses = pureExpenses + totalWages;
   const netTotal = totalGrossSales - totalReturns - totalDiscounts;
   const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
-  const totalPaymentMethods = totalCash + totalPix + totalDebit + totalCredit;
+  const categorizedItems = getCategorizedItems(sales);
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
@@ -584,58 +639,60 @@ export const Reports = () => {
 
       {activeTab === 'finance' && (
         <>
-      {/* Dashboard Summary - Aligned to Left without stretching */}
-      <div className="flex mb-6" style={{ flexWrap: 'wrap', gap: '24px' }}>
+      {/* Dashboard Summary Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         
         {/* Column 1: Items List */}
-        <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
-          <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Serviços e Itens</h3>
-          <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar" style={{ flex: 1, maxHeight: '250px', paddingRight: '8px' }}>
-            {[
-              { name: 'Chaves', qty: serviceQtys.key, val: serviceTotals.key },
-              { name: 'Molinhas', qty: serviceQtys.spring, val: serviceTotals.spring },
-              { name: 'Parafusos', qty: serviceQtys.screw, val: serviceTotals.screw },
-              { name: 'Afiações Alicate', qty: serviceQtys.plier_sharp, val: serviceTotals.plier_sharp },
-              { name: 'Venda Alicates', qty: serviceQtys.plier, val: serviceTotals.plier },
-              { name: 'Tesouras', qty: serviceQtys.scissor, val: serviceTotals.scissor },
-              { name: 'Facas', qty: serviceQtys.knife, val: serviceTotals.knife },
-              { name: 'Outros', qty: serviceQtys.other, val: serviceTotals.other },
-            ].filter(i => i.qty > 0).map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center rounded border border-[var(--border)]" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px' }}>
-                <span className="text-sm font-bold">{item.name} <span className="text-muted text-xs font-normal">({item.qty} un)</span></span>
-                <span className="font-bold text-primary">R$ {item.val.toFixed(2).replace('.', ',')}</span>
-              </div>
-            ))}
-            {Object.values(serviceQtys).every(v => v === 0) && (
-              <div className="text-center text-muted text-sm py-4">Nenhum item no período.</div>
-            )}
+        <div className="glass-panel p-6 flex flex-col justify-between" style={{ minHeight: '360px' }}>
+          <div>
+            <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Serviços e Itens</h3>
+            <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar" style={{ maxHeight: '280px', paddingRight: '4px' }}>
+              {categorizedItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center rounded border border-[var(--border)]" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px 12px' }}>
+                  <span className="text-sm font-bold">{item.name} <span className="text-muted text-xs font-normal">({item.qty} un)</span></span>
+                  <span className="font-bold text-primary">R$ {item.val.toFixed(2).replace('.', ',')}</span>
+                </div>
+              ))}
+              {categorizedItems.length === 0 && (
+                <div className="text-center text-muted text-sm py-4">Nenhum item no período.</div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Column 2: Payment Methods */}
-        <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
-          <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Pagamentos</h3>
-          <div className="flex flex-col" style={{ gap: '12px' }}>
-            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #16a34a' }}>
-              <span className="text-sm font-bold uppercase text-muted">Dinheiro</span>
-              <span className="font-black text-lg" style={{ color: '#16a34a' }}>R$ {totalCash.toFixed(2).replace('.', ',')}</span>
+        <div className="glass-panel p-6 flex flex-col justify-between" style={{ minHeight: '360px' }}>
+          <div>
+            <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Pagamentos</h3>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderLeft: '4px solid #16a34a' }}>
+                <span className="text-sm font-bold uppercase text-muted">Dinheiro</span>
+                <span className="font-black text-lg" style={{ color: '#16a34a' }}>R$ {totalCash.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderLeft: '4px solid #14b8a6' }}>
+                <span className="text-sm font-bold uppercase text-muted">Pix</span>
+                <span className="font-black text-lg" style={{ color: '#14b8a6' }}>R$ {totalPix.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderLeft: '4px solid #2563eb' }}>
+                <span className="text-sm font-bold uppercase text-muted">Débito</span>
+                <span className="font-black text-lg" style={{ color: '#2563eb' }}>R$ {totalDebit.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderLeft: '4px solid #9333ea' }}>
+                <span className="text-sm font-bold uppercase text-muted">Crédito</span>
+                <span className="font-black text-lg" style={{ color: '#9333ea' }}>R$ {totalCredit.toFixed(2).replace('.', ',')}</span>
+              </div>
+              
+              {/* Total Maquininha (Pix + Cartões) */}
+              <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px 12px', borderLeft: '4px solid #38bdf8', marginTop: '2px' }}>
+                <span className="text-xs font-bold uppercase text-muted">Total Maquininha (Pix + Cartões)</span>
+                <span className="font-black text-base" style={{ color: '#38bdf8' }}>R$ {(totalPix + totalDebit + totalCredit).toFixed(2).replace('.', ',')}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #14b8a6' }}>
-              <span className="text-sm font-bold uppercase text-muted">Pix</span>
-              <span className="font-black text-lg" style={{ color: '#14b8a6' }}>R$ {totalPix.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #2563eb' }}>
-              <span className="text-sm font-bold uppercase text-muted">Débito</span>
-              <span className="font-black text-lg" style={{ color: '#2563eb' }}>R$ {totalDebit.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center rounded" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderLeft: '4px solid #9333ea' }}>
-              <span className="text-sm font-bold uppercase text-muted">Crédito</span>
-              <span className="font-black text-lg" style={{ color: '#9333ea' }}>R$ {totalCredit.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center rounded" style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-              <span className="font-bold uppercase text-sm text-muted">Total Recebido</span>
-              <span className="font-black text-lg">R$ {totalPaymentMethods.toFixed(2).replace('.', ',')}</span>
-            </div>
+          </div>
+
+          <div className="flex justify-between items-center rounded pt-3 mt-3" style={{ borderTop: '1px solid var(--border)' }}>
+            <span className="font-bold uppercase text-sm text-muted">Total Recebido</span>
+            <span className="font-black text-xl">R$ {totalPaymentMethods.toFixed(2).replace('.', ',')}</span>
           </div>
         </div>
 

@@ -243,6 +243,7 @@ export const SalesHistory = () => {
       await db.transactions.update(editingTx.id, {
         profile: editingTx.profile,
         paymentMethod: editingTx.paymentMethod,
+        clientName: editingTx.clientName ? editingTx.clientName.trim() : undefined,
         discount: editingTx.discount || 0,
         machineFee: calculatedFee > 0 ? calculatedFee : undefined,
         items: updatedItems,
@@ -328,6 +329,7 @@ export const SalesHistory = () => {
                 <th className="font-medium" style={{ padding: '12px 8px', width: '90px' }}>Operador</th>
                 <th className="font-medium" style={{ padding: '12px 8px', width: '80px' }}>Tipo</th>
                 <th className="font-medium" style={{ padding: '12px 8px' }}>Descrição / Itens</th>
+                <th className="font-medium" style={{ padding: '12px 8px', width: '130px' }}>Cliente</th>
                 <th className="font-medium" style={{ padding: '12px 8px', width: '100px' }}>Pgto</th>
                 <th className="font-medium text-right" style={{ padding: '12px 8px', width: '110px' }}>Valor Total</th>
                 <th className="font-medium text-center" style={{ padding: '12px 8px', width: '180px' }}>Ações</th>
@@ -373,7 +375,13 @@ export const SalesHistory = () => {
                       <div className="truncate" style={{ maxWidth: '200px' }} title={t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}>
                         {t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                       </div>
-                      {t.clientName && <div className="text-xs text-muted mt-0.5">Cliente: {t.clientName}</div>}
+                    </td>
+                    <td className="text-sm font-semibold" style={{ padding: '12px 8px' }}>
+                      {t.clientName ? (
+                        <span className="text-primary font-bold">{t.clientName}</span>
+                      ) : (
+                        <span className="text-muted font-normal">-</span>
+                      )}
                     </td>
                     <td className="text-sm font-bold uppercase text-muted" style={{ padding: '12px 8px' }}>
                       {t.paymentMethod === 'cash' ? 'Dinheiro' : 
@@ -432,7 +440,7 @@ export const SalesHistory = () => {
               })}
               {transactions && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted">Nenhuma transação encontrada com os filtros selecionados.</td>
+                  <td colSpan={8} className="py-8 text-center text-muted">Nenhuma transação encontrada com os filtros selecionados.</td>
                 </tr>
               )}
             </tbody>
@@ -466,7 +474,7 @@ export const SalesHistory = () => {
             </div>
             
             <div className="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="label">Operador</label>
                   <select 
@@ -479,7 +487,7 @@ export const SalesHistory = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="label">Forma de Pagamento {editingTx.paymentMethod === 'split' ? '(Múltiplo - Não Editável)' : ''}</label>
+                  <label className="label">Forma de Pagamento {editingTx.paymentMethod === 'split' ? '(Múltiplo)' : ''}</label>
                   <select 
                     className="input font-bold uppercase" 
                     value={editingTx.paymentMethod} 
@@ -492,6 +500,16 @@ export const SalesHistory = () => {
                     <option value="debit">Débito</option>
                     <option value="split">Múltiplo</option>
                   </select>
+                </div>
+                <div>
+                  <label className="label">Cliente</label>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    placeholder="Nome do cliente"
+                    value={editingTx.clientName || ''} 
+                    onChange={e => setEditingTx({...editingTx, clientName: e.target.value})}
+                  />
                 </div>
               </div>
 

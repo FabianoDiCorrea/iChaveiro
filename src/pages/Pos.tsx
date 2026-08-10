@@ -40,6 +40,7 @@ export const Pos = () => {
   // Pending Sales states
   const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
   const [showPendingModal, setShowPendingModal] = useState(false);
+  const [showSavePendingConfirmModal, setShowSavePendingConfirmModal] = useState(false);
   const [pendingClientName, setPendingClientName] = useState('');
   const [pendingClientPhone, setPendingClientPhone] = useState('');
 
@@ -49,6 +50,8 @@ export const Pos = () => {
   const [closeRegisterCash, setCloseRegisterCash] = useState<string>('');
   const [selectedEmployeesToPay, setSelectedEmployeesToPay] = useState<number[]>([]);
   const [customWages, setCustomWages] = useState<Record<number, string>>({});
+  const [employeePaymentMethods, setEmployeePaymentMethods] = useState<Record<number, 'cash' | 'pix' | 'split'>>({});
+  const [employeeSplitCash, setEmployeeSplitCash] = useState<Record<number, string>>({});
   const employees = useLiveQuery(() => db.employees?.toArray() || []);
   const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>('0,00');
 
@@ -266,9 +269,13 @@ export const Pos = () => {
 
   const handlePendingClick = () => {
     if (items.length === 0) return alert('Adicione itens para salvar a retirada.');
-    setPendingClientName('');
-    setPendingClientPhone('');
-    setShowPendingModal(true);
+    if (activePendingSaleId) {
+      setShowSavePendingConfirmModal(true);
+    } else {
+      setPendingClientName(clientCode || '');
+      setPendingClientPhone('');
+      setShowPendingModal(true);
+    }
   };
 
   const handleCancelCart = () => {
@@ -278,17 +285,20 @@ export const Pos = () => {
     setCashReceived('');
     setCustomUnitPrice('');
     setSplitPayments([]);
+    setPendingClientName('');
+    setPendingClientPhone('');
     setActivePendingSaleId(null);
     if (searchInputRef.current) searchInputRef.current.focus();
   };
 
   const savePendingSale = async () => {
-    if (!pendingClientName.trim()) return alert('Informe o nome do cliente.');
+    const finalClientName = pendingClientName.trim() || clientCode.trim();
+    if (!finalClientName) return alert('Informe o nome do cliente.');
 
     try {
       await db.transaction('rw', db.pendingSales, db.products, async () => {
-        // Decrease stock if it hasn't been reserved yet
         if (!activePendingSaleId) {
+          // Decrease stock if it hasn't been reserved yet
           for (const item of items) {
             if (item.productId) {
               const product = await db.products.get(item.productId);
@@ -297,11 +307,36 @@ export const Pos = () => {
               }
             }
           }
+        } else {
+          // Calculate stock difference for updated items
+          const oldSale = await db.pendingSales.get(activePendingSaleId);
+          if (oldSale) {
+            const oldQtyMap: Record<number, number> = {};
+            for (const item of oldSale.items) {
+              if (item.productId) oldQtyMap[item.productId] = (oldQtyMap[item.productId] || 0) + item.quantity;
+            }
+            const newQtyMap: Record<number, number> = {};
+            for (const item of items) {
+              if (item.productId) newQtyMap[item.productId] = (newQtyMap[item.productId] || 0) + item.quantity;
+            }
+            const allProdIds = new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)].map(Number));
+            for (const pId of allProdIds) {
+              const oldQ = oldQtyMap[pId] || 0;
+              const newQ = newQtyMap[pId] || 0;
+              const diff = newQ - oldQ;
+              if (diff !== 0) {
+                const product = await db.products.get(pId);
+                if (product && product.hasStock) {
+                  await db.products.update(pId, { stock: product.stock - diff });
+                }
+              }
+            }
+          }
         }
 
         if (activePendingSaleId) {
           await db.pendingSales.update(activePendingSaleId, {
-            clientName: pendingClientName,
+            clientName: finalClientName,
             clientPhone: pendingClientPhone,
             items: items,
             total: totalAmount,
@@ -310,7 +345,7 @@ export const Pos = () => {
         } else {
           await db.pendingSales.add({
             profile: transactionProfile,
-            clientName: pendingClientName,
+            clientName: finalClientName,
             clientPhone: pendingClientPhone,
             items: items,
             total: totalAmount,
@@ -320,9 +355,12 @@ export const Pos = () => {
       });
 
       setShowPendingModal(false);
+      setShowSavePendingConfirmModal(false);
       setItems([]);
       setClientCode('');
       setDiscount('');
+      setPendingClientName('');
+      setPendingClientPhone('');
       setActivePendingSaleId(null);
       if (searchInputRef.current) searchInputRef.current.focus();
     } catch (err) {
@@ -333,8 +371,10 @@ export const Pos = () => {
 
   const loadPendingSale = (sale: any) => {
     setActivePendingSaleId(sale.id!);
+    setPendingClientName(sale.clientName || '');
+    setPendingClientPhone(sale.clientPhone || '');
     setItems(sale.items);
-    setClientCode(sale.clientName);
+    setClientCode(sale.clientName || '');
     setDiscount('');
     setCashReceived('');
     setCustomUnitPrice('');
@@ -370,7 +410,9 @@ export const Pos = () => {
   const handleRescueStorageBox = (sale: any) => {
     setItems(sale.items);
     setActivePendingSaleId(sale.id!);
-    setClientCode(sale.clientName);
+    setClientCode(sale.clientName || '');
+    setPendingClientName(sale.clientName || '');
+    setPendingClientPhone(sale.clientPhone || '');
     setShowStorageBoxModal(false);
   };
 
@@ -400,13 +442,37 @@ export const Pos = () => {
     try {
       await db.transaction('rw', db.transactions, db.products, db.pendingSales, async () => {
         // Decrement stock for products (Only for keys, springs and screws)
-        // Only decrement if NOT coming from a pending sale (because it was already decremented when reserved)
         if (!activePendingSaleId) {
           for (const item of items) {
             if (item.productId) {
               const product = await db.products.get(item.productId);
               if (product && product.hasStock) {
                 await db.products.update(product.id!, { stock: product.stock - item.quantity });
+              }
+            }
+          }
+        } else {
+          // Adjust stock for any difference between original pending sale items and final checkout items
+          const oldSale = await db.pendingSales.get(activePendingSaleId);
+          if (oldSale) {
+            const oldQtyMap: Record<number, number> = {};
+            for (const item of oldSale.items) {
+              if (item.productId) oldQtyMap[item.productId] = (oldQtyMap[item.productId] || 0) + item.quantity;
+            }
+            const newQtyMap: Record<number, number> = {};
+            for (const item of items) {
+              if (item.productId) newQtyMap[item.productId] = (newQtyMap[item.productId] || 0) + item.quantity;
+            }
+            const allProdIds = new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)].map(Number));
+            for (const pId of allProdIds) {
+              const oldQ = oldQtyMap[pId] || 0;
+              const newQ = newQtyMap[pId] || 0;
+              const diff = newQ - oldQ;
+              if (diff !== 0) {
+                const product = await db.products.get(pId);
+                if (product && product.hasStock) {
+                  await db.products.update(pId, { stock: product.stock - diff });
+                }
               }
             }
           }
@@ -593,14 +659,14 @@ export const Pos = () => {
     }
   };
 
-  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number }[] = []) => {
+  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number, method: 'cash' | 'pix' }[] = []) => {
     const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
     const closedStr = new Date().toLocaleString('pt-BR');
-    const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0);
-    const difference = closeCash - expectedCash;
-    const withdrawal = closeCash - leftInDrawer;
-    const totalWages = wages.reduce((sum, w) => sum + w.amount, 0);
-    const pureExpenses = (totals.expenses || 0) - totalWages;
+    
+    const cashWagesTotal = wages.filter(w => w.method === 'cash').reduce((sum, w) => sum + w.amount, 0);
+    const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0) - cashWagesTotal;
+    const difference = closeCash - (session.initialCash + totals.cash - (totals.expenses || 0));
+    const withdrawal = (closeCash - cashWagesTotal) - leftInDrawer;
 
     const html = `
       <html>
@@ -635,8 +701,8 @@ export const Pos = () => {
           <table>
             <tr><td class="bold">Fundo de Abertura:</td><td class="text-right">R$ ${session.initialCash.toFixed(2).replace('.', ',')}</td></tr>
             <tr><td class="bold">Vendas Dinheiro (+):</td><td class="text-right">R$ ${totals.cash.toFixed(2).replace('.', ',')}</td></tr>
-            ${pureExpenses > 0 ? `<tr><td class="bold">Despesas (Insumos) (-):</td><td class="text-right">R$ ${pureExpenses.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-            ${wages.map(w => `<tr><td class="bold">Diária (${w.name}) (-):</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
+            ${(totals.expenses || 0) > 0 ? `<tr><td class="bold">Despesas Dinheiro (-):</td><td class="text-right">R$ ${totals.expenses.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+            ${wages.map(w => `<tr><td class="bold">Diária (${w.name} - ${w.method === 'pix' ? 'PIX' : 'Dinheiro'}) (-):</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
             <tr><td class="bold">Dinheiro Esperado:</td><td class="text-right font-black">R$ ${expectedCash.toFixed(2).replace('.', ',')}</td></tr>
             <tr><td class="bold">Dinheiro Contado:</td><td class="text-right">R$ ${closeCash.toFixed(2).replace('.', ',')}</td></tr>
             <tr style="color: ${difference >= 0 ? 'green' : 'red'};"><td class="bold">Diferença Dinheiro:</td><td class="text-right bold">R$ ${difference.toFixed(2).replace('.', ',')} (${difference >= 0 ? 'Sobrando' : 'Faltando'})</td></tr>
@@ -688,48 +754,88 @@ export const Pos = () => {
     const closeCashVal = parseCurrency(closeRegisterCash);
     const leftInDrawerVal = parseCurrency(closeLeftInDrawer);
     
-    let totalWagesToPay = 0;
-    const wageDetails: { name: string, amount: number }[] = [];
+    let totalCashWages = 0;
+    let totalPixWages = 0;
+    const wageDetails: { name: string, amount: number, method: 'cash' | 'pix' }[] = [];
     
     try {
       if (activeSession.profile === 'chaveiro' && selectedEmployeesToPay.length > 0 && employees) {
         const empsToPay = employees.filter(e => selectedEmployeesToPay.includes(e.id!));
         for (const emp of empsToPay) {
           const wageStr = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
-          const wageVal = parseCurrency(wageStr);
-          totalWagesToPay += wageVal;
-          wageDetails.push({ name: emp.name, amount: wageVal });
-          await db.transactions.add({
-            profile: activeSession.profile,
-            type: 'expense',
-            items: [{
-              service: 'other',
-              name: `Pagamento de Diária: ${emp.name}`,
-              quantity: 1,
-              price: wageVal,
-              cost: 0,
-              total: wageVal
-            }],
-            total: wageVal,
-            paymentMethod: 'cash',
-            date: new Date()
-          });
+          const totalWageVal = parseCurrency(wageStr);
+          const method = employeePaymentMethods[emp.id!] || 'cash';
+          
+          let cashWage = 0;
+          let pixWage = 0;
+
+          if (method === 'cash') {
+            cashWage = totalWageVal;
+          } else if (method === 'pix') {
+            pixWage = totalWageVal;
+          } else if (method === 'split') {
+            const cashStr = employeeSplitCash[emp.id!] !== undefined ? employeeSplitCash[emp.id!] : (totalWageVal / 2).toFixed(2).replace('.', ',');
+            cashWage = parseCurrency(cashStr);
+            if (cashWage > totalWageVal) cashWage = totalWageVal;
+            pixWage = totalWageVal - cashWage;
+          }
+
+          totalCashWages += cashWage;
+          totalPixWages += pixWage;
+
+          if (cashWage > 0) {
+            wageDetails.push({ name: emp.name, amount: cashWage, method: 'cash' });
+            await db.transactions.add({
+              profile: activeSession.profile,
+              type: 'expense',
+              items: [{
+                service: 'other',
+                name: `Pagamento de Diária (Dinheiro): ${emp.name}`,
+                quantity: 1,
+                price: cashWage,
+                cost: 0,
+                total: cashWage
+              }],
+              total: cashWage,
+              paymentMethod: 'cash',
+              date: new Date()
+            });
+          }
+
+          if (pixWage > 0) {
+            wageDetails.push({ name: emp.name, amount: pixWage, method: 'pix' });
+            await db.transactions.add({
+              profile: activeSession.profile,
+              type: 'expense',
+              items: [{
+                service: 'other',
+                name: `Pagamento de Diária (PIX): ${emp.name}`,
+                quantity: 1,
+                price: pixWage,
+                cost: 0,
+                total: pixWage
+              }],
+              total: pixWage,
+              paymentMethod: 'pix',
+              date: new Date()
+            });
+          }
         }
       }
 
-      // Expected gross cash BEFORE taking wages out
+      // Expected gross cash BEFORE taking cash wages out
       const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
-      const expectedNetCash = expectedGrossCash - totalWagesToPay;
+      const expectedNetCash = expectedGrossCash - totalCashWages;
 
       // The user typed the GROSS physical cash they counted in the drawer (before taking wages out)
       const diffVal = closeCashVal - expectedGrossCash;
 
       await db.cashSessions.update(activeSession.id!, {
         closedAt: new Date(),
-        expectedCash: expectedNetCash, // Save the final expected cash
-        actualCash: closeCashVal - totalWagesToPay, // Actual cash left in drawer after paying
+        expectedCash: expectedNetCash,
+        actualCash: closeCashVal - totalCashWages,
         leftInDrawer: leftInDrawerVal,
-        difference: diffVal, // Use gross difference so history matches what they saw
+        difference: diffVal,
         status: 'closed',
         cashSales: sessionTotals.cash,
         pixSales: sessionTotals.pix,
@@ -737,16 +843,14 @@ export const Pos = () => {
         creditSales: sessionTotals.credit
       });
 
-      const updatedTotals = { ...sessionTotals, expenses: sessionTotals.expenses + totalWagesToPay };
-      const shouldPrint = window.confirm("Deseja imprimir o comprovante de fechamento de caixa?");
-      if (shouldPrint) {
-        printCloseReport(activeSession, updatedTotals, closeCashVal - totalWagesToPay, leftInDrawerVal, wageDetails);
-      }
-
       localStorage.setItem(`ichaveiro_last_drawer_left_${transactionProfile}`, closeLeftInDrawer);
       setOpenRegisterCash(closeLeftInDrawer);
       setShowCloseRegisterModal(false);
       setCloseRegisterCash('');
+      setSelectedEmployeesToPay([]);
+      setCustomWages({});
+      setEmployeePaymentMethods({});
+      setEmployeeSplitCash({});
       
       runAutoBackup();
     } catch (err) {
@@ -1401,13 +1505,23 @@ export const Pos = () => {
             </button>
 
             <div className="grid grid-cols-2 gap-3 mt-3">
-              <button
-                className="py-2 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
-                style={{ backgroundColor: '#eab308', color: '#000000', border: 'none' }}
-                onClick={handlePendingClick}
-              >
-                Deixar Pendente
-              </button>
+              {activePendingSaleId ? (
+                <button
+                  className="py-2.5 text-sm font-extrabold rounded shadow transition-all uppercase flex justify-center items-center gap-1.5 hover:opacity-90 cursor-pointer"
+                  style={{ backgroundColor: '#eab308', color: '#000000', border: 'none' }}
+                  onClick={() => setShowSavePendingConfirmModal(true)}
+                >
+                  💾 Salvar Pendência
+                </button>
+              ) : (
+                <button
+                  className="py-2 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
+                  style={{ backgroundColor: '#eab308', color: '#000000', border: 'none' }}
+                  onClick={handlePendingClick}
+                >
+                  Deixar Pendente
+                </button>
+              )}
               <button
                 className="py-2 text-sm font-extrabold rounded shadow transition-colors uppercase flex justify-center items-center hover:opacity-90"
                 style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none' }}
@@ -1421,6 +1535,23 @@ export const Pos = () => {
 
         {/* Right column: List and Totals */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
+          {activePendingSaleId && (
+            <div className="bg-yellow-500/20 border-2 border-yellow-500 rounded-lg p-3 flex items-center justify-between shadow-md animate-fade-in">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏳</span>
+                <div>
+                  <span className="text-xs font-bold text-yellow-400 uppercase tracking-wide block">Editando Pendência Resgatada</span>
+                  <span className="text-lg font-black text-white uppercase">{pendingClientName || clientCode || 'Cliente'}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSavePendingConfirmModal(true)}
+                className="bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xs px-4 py-2 rounded uppercase transition-transform active:scale-95 shadow border-none cursor-pointer flex items-center gap-1.5"
+              >
+                💾 Salvar Alterações
+              </button>
+            </div>
+          )}
 
           <div className="flex-1 rounded-lg shadow-lg border border-[var(--border)] flex flex-col min-h-0 overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
             <div className="border-b border-gray-300 text-center font-bold py-3 uppercase tracking-widest text-xl" style={{ backgroundColor: '#f3f4f6', color: '#000000' }}>
@@ -1698,6 +1829,87 @@ export const Pos = () => {
         </div>
       )}
 
+      {/* Confirmation Modal when editing a rescued Pending Sale */}
+      {showSavePendingConfirmModal && (
+        <div 
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, 
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
+          }}
+          className="animate-fade-in"
+        >
+          <div 
+            style={{ 
+              backgroundColor: '#1e293b', border: '4px solid #eab308', borderRadius: '16px', padding: '32px', 
+              maxWidth: '480px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
+              display: 'flex', flexDirection: 'column', gap: '20px' 
+            }}
+            className="animate-scale-in"
+          >
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', margin: 0, textAlign: 'center' }}>
+              Confirmar Alteração da Pendência
+            </h2>
+            
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                  Nome do Cliente
+                </label>
+                <input 
+                  type="text" 
+                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '10px 12px', fontSize: '1.1rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
+                  value={pendingClientName} 
+                  onChange={e => setPendingClientName(e.target.value)}
+                  placeholder="Nome do cliente"
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                  Telefone (Opcional)
+                </label>
+                <input 
+                  type="text" 
+                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '10px 12px', fontSize: '1.1rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
+                  value={pendingClientPhone} 
+                  onChange={e => setPendingClientPhone(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                  {items.length} item(ns) na venda
+                </span>
+                <span style={{ color: '#4ade80', fontSize: '1.3rem', fontWeight: 900 }}>
+                  R$ {totalAmount.toFixed(2).replace('.', ',')}
+                </span>
+              </div>
+            </div>
+
+            <p style={{ color: '#e2e8f0', fontSize: '1rem', textAlign: 'center', margin: 0, fontWeight: 'bold' }}>
+              Deseja salvar as alterações nesta pendência?
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+              <button 
+                onClick={() => setShowSavePendingConfirmModal(false)}
+                style={{ flex: 1, padding: '14px', backgroundColor: '#475569', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer', fontSize: '1rem' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={savePendingSale}
+                style={{ flex: 1, padding: '14px', backgroundColor: '#22c55e', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer', fontSize: '1rem', boxShadow: '0 4px 6px -1px rgba(34, 197, 94, 0.4)' }}
+              >
+                Sim, Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modals for Confirmation Flow */}
       {showConfirmModal && (
         <div 
@@ -1968,17 +2180,39 @@ export const Pos = () => {
             </h2>
 
             {(() => {
-              const pendingWages = activeSession.profile === 'chaveiro' ? employees?.filter(e => selectedEmployeesToPay.includes(e.id!)).reduce((sum, e) => {
-                const wageStr = customWages[e.id!] !== undefined ? customWages[e.id!] : e.dailyWage.toFixed(2).replace('.', ',');
-                return sum + parseCurrency(wageStr);
-              }, 0) || 0 : 0;
+              const { pendingCashWages, pendingPixWages, totalPendingWages } = (() => {
+                if (activeSession.profile !== 'chaveiro' || !employees || selectedEmployeesToPay.length === 0) {
+                  return { pendingCashWages: 0, pendingPixWages: 0, totalPendingWages: 0 };
+                }
+                let cWages = 0;
+                let pWages = 0;
+                const empsToPay = employees.filter(e => selectedEmployeesToPay.includes(e.id!));
+                for (const emp of empsToPay) {
+                  const wageStr = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
+                  const totalWageVal = parseCurrency(wageStr);
+                  const method = employeePaymentMethods[emp.id!] || 'cash';
+                  if (method === 'cash') {
+                    cWages += totalWageVal;
+                  } else if (method === 'pix') {
+                    pWages += totalWageVal;
+                  } else if (method === 'split') {
+                    const cashStr = employeeSplitCash[emp.id!] !== undefined ? employeeSplitCash[emp.id!] : (totalWageVal / 2).toFixed(2).replace('.', ',');
+                    let cVal = parseCurrency(cashStr);
+                    if (cVal > totalWageVal) cVal = totalWageVal;
+                    cWages += cVal;
+                    pWages += (totalWageVal - cVal);
+                  }
+                }
+                return { pendingCashWages: cWages, pendingPixWages: pWages, totalPendingWages: cWages + pWages };
+              })();
+
               const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
-              const expectedNetCash = expectedGrossCash - pendingWages;
+              const expectedNetCash = expectedGrossCash - pendingCashWages;
               
               const closeCash = parseCurrency(closeRegisterCash);
               const leftInDrawer = parseCurrency(closeLeftInDrawer);
               const diff = closeCash - expectedGrossCash;
-              const withdrawal = (closeCash - pendingWages) - leftInDrawer;
+              const withdrawal = (closeCash - pendingCashWages) - leftInDrawer;
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2006,19 +2240,25 @@ export const Pos = () => {
                     
                     <div style={{ color: '#f87171', fontWeight: 'bold', margin: '8px 0 4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>RESUMO DE SAÍDAS (CUSTOS)</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#f87171' }}>Despesas / Retiradas:</span>
+                      <span style={{ color: '#f87171' }}>Despesas em Dinheiro:</span>
                       <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {sessionTotals.expenses.toFixed(2).replace('.', ',')}</span>
                     </div>
-                    {pendingWages > 0 && (
+                    {pendingCashWages > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#f87171' }}>Pagamento de Diárias:</span>
-                        <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {pendingWages.toFixed(2).replace('.', ',')}</span>
+                        <span style={{ color: '#f87171' }}>Diárias em Dinheiro (Gaveta):</span>
+                        <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {pendingCashWages.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                    )}
+                    {pendingPixWages > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#38bdf8' }}>Diárias em PIX (Maquininha/Conta):</span>
+                        <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>- R$ {pendingPixWages.toFixed(2).replace('.', ',')}</span>
                       </div>
                     )}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px', fontSize: '1rem' }}>
                       <span style={{ color: '#ffffff', fontWeight: 'bold' }}>LUCRO BRUTO DO PERÍODO:</span>
-                      <strong style={{ color: '#4ade80' }}>R$ {(sessionTotals.totalSales - sessionTotals.expenses - pendingWages).toFixed(2).replace('.', ',')}</strong>
+                      <strong style={{ color: '#4ade80' }}>R$ {(sessionTotals.totalSales - sessionTotals.expenses - totalPendingWages).toFixed(2).replace('.', ',')}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem' }}>
                       <span style={{ color: '#ffffff', fontWeight: 'bold' }}>DINHEIRO ESPERADO NA GAVETA:</span>
@@ -2029,59 +2269,165 @@ export const Pos = () => {
                   {/* 2. Diárias */}
                   {employees && employees.filter(e => e.active).length > 0 && activeSession.profile === 'chaveiro' && (
                     <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.85rem' }}>PAGAMENTO DE DIÁRIAS (MARQUE PARA ABATER DO CAIXA):</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.85rem' }}>PAGAMENTO DE DIÁRIAS (ESCOLHA O MÉTODO):</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {employees.filter(e => e.active).map(emp => {
                           const isChecked = selectedEmployeesToPay.includes(emp.id!);
                           const currentWage = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
-                          
+                          const totalWageVal = parseCurrency(currentWage);
+                          const currentMethod = employeePaymentMethods[emp.id!] || 'cash';
+                          const cashSplitStr = employeeSplitCash[emp.id!] !== undefined ? employeeSplitCash[emp.id!] : (totalWageVal / 2).toFixed(2).replace('.', ',');
+                          const cashSplitVal = parseCurrency(cashSplitStr);
+                          const pixSplitVal = Math.max(0, totalWageVal - cashSplitVal);
+
                           return (
-                          <div key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff', flex: 1 }}>
-                              <input 
-                                type="checkbox" 
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedEmployeesToPay([...selectedEmployeesToPay, emp.id!]);
-                                  else {
-                                    setSelectedEmployeesToPay(selectedEmployeesToPay.filter(id => id !== emp.id!));
-                                    const newWages = {...customWages};
-                                    delete newWages[emp.id!];
-                                    setCustomWages(newWages);
-                                  }
-                                }}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                              />
-                              <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{emp.name}</span>
-                            </label>
-                            {isChecked ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ color: '#f87171', fontWeight: 'bold', fontSize: '0.9rem' }}>- R$</span>
+                          <div key={emp.id} style={{ backgroundColor: isChecked ? 'rgba(255,255,255,0.05)' : 'transparent', padding: '8px 10px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', border: isChecked ? '1px solid rgba(255,255,255,0.15)' : '1px solid transparent' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff' }}>
                                 <input 
-                                  type="text"
-                                  value={currentWage}
-                                  onChange={e => {
-                                    let val = e.target.value.replace(/\D/g, '');
-                                    if (val === '') val = '0';
-                                    const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
-                                    setCustomWages({...customWages, [emp.id!]: formatted});
+                                  type="checkbox" 
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedEmployeesToPay([...selectedEmployeesToPay, emp.id!]);
+                                      if (!employeePaymentMethods[emp.id!]) {
+                                        setEmployeePaymentMethods({ ...employeePaymentMethods, [emp.id!]: 'cash' });
+                                      }
+                                    } else {
+                                      setSelectedEmployeesToPay(selectedEmployeesToPay.filter(id => id !== emp.id!));
+                                      const newWages = {...customWages};
+                                      delete newWages[emp.id!];
+                                      setCustomWages(newWages);
+                                    }
                                   }}
-                                  style={{
-                                    width: '70px',
-                                    backgroundColor: 'rgba(0,0,0,0.5)',
-                                    border: '1px solid #dc2626',
-                                    borderRadius: '4px',
-                                    padding: '4px',
-                                    color: '#f87171',
-                                    fontSize: '0.9rem',
-                                    fontWeight: 'bold',
-                                    textAlign: 'center',
-                                    outline: 'none'
-                                  }}
+                                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                                 />
+                                <span style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>{emp.name}</span>
+                              </label>
+
+                              {isChecked ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ color: '#f87171', fontWeight: 'bold', fontSize: '0.9rem' }}>Total: R$</span>
+                                  <input 
+                                    type="text"
+                                    value={currentWage}
+                                    onChange={e => {
+                                      let val = e.target.value.replace(/\D/g, '');
+                                      if (val === '') val = '0';
+                                      const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
+                                      setCustomWages({...customWages, [emp.id!]: formatted});
+                                    }}
+                                    style={{
+                                      width: '75px',
+                                      backgroundColor: 'rgba(0,0,0,0.5)',
+                                      border: '1px solid #dc2626',
+                                      borderRadius: '4px',
+                                      padding: '4px',
+                                      color: '#f87171',
+                                      fontSize: '0.9rem',
+                                      fontWeight: 'bold',
+                                      textAlign: 'center',
+                                      outline: 'none'
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.85rem' }}>- R$ {emp.dailyWage.toFixed(2).replace('.', ',')}</span>
+                              )}
+                            </div>
+
+                            {isChecked && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: 'rgba(0,0,0,0.3)', padding: '6px 8px', borderRadius: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase' }}>Forma de Pagamento:</span>
+                                  <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '6px', padding: '2px', border: '1px solid #475569' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEmployeePaymentMethods({ ...employeePaymentMethods, [emp.id!]: 'cash' })}
+                                      style={{
+                                        backgroundColor: currentMethod === 'cash' ? '#16a34a' : 'transparent',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '2px 8px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      💵 Dinheiro
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEmployeePaymentMethods({ ...employeePaymentMethods, [emp.id!]: 'pix' })}
+                                      style={{
+                                        backgroundColor: currentMethod === 'pix' ? '#14b8a6' : 'transparent',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '2px 8px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      📱 PIX
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEmployeePaymentMethods({ ...employeePaymentMethods, [emp.id!]: 'split' })}
+                                      style={{
+                                        backgroundColor: currentMethod === 'split' ? '#eab308' : 'transparent',
+                                        color: currentMethod === 'split' ? '#000000' : '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '2px 8px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      🔀 Misto
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {currentMethod === 'split' && (
+                                  <div style={{ display: 'flex', gap: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '6px', marginTop: '2px' }}>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 'bold' }}>💵 Dinheiro:</span>
+                                      <input 
+                                        type="text"
+                                        value={cashSplitStr}
+                                        onChange={e => {
+                                          let val = e.target.value.replace(/\D/g, '');
+                                          if (val === '') val = '0';
+                                          const formatted = (parseFloat(val) / 100).toFixed(2).replace('.', ',');
+                                          setEmployeeSplitCash({ ...employeeSplitCash, [emp.id!]: formatted });
+                                        }}
+                                        style={{
+                                          width: '65px',
+                                          backgroundColor: 'rgba(0,0,0,0.6)',
+                                          border: '1px solid #16a34a',
+                                          borderRadius: '4px',
+                                          padding: '2px 4px',
+                                          color: '#4ade80',
+                                          fontSize: '0.85rem',
+                                          fontWeight: 'bold',
+                                          textAlign: 'center',
+                                          outline: 'none'
+                                        }}
+                                      />
+                                    </div>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                                      <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 'bold' }}>📱 PIX:</span>
+                                      <span style={{ fontSize: '0.85rem', color: '#38bdf8', fontWeight: 900 }}>
+                                        R$ {pixSplitVal.toFixed(2).replace('.', ',')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.9rem' }}>- R$ {emp.dailyWage.toFixed(2).replace('.', ',')}</span>
                             )}
                           </div>
                         )})}
