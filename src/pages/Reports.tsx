@@ -641,7 +641,7 @@ export const Reports = () => {
       {activeTab === 'finance' && (
         <>
       {/* 3 Top Cards Side by Side */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-3 gap-6 mb-6">
         
         {/* Column 1: Serviços e Itens */}
         <div className="glass-panel p-6 flex flex-col justify-between">
