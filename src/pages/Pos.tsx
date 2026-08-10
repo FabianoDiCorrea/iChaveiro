@@ -1509,7 +1509,7 @@ export const Pos = () => {
                 <button
                   className="py-2.5 text-sm font-extrabold rounded shadow transition-all uppercase flex justify-center items-center gap-1.5 hover:opacity-90 cursor-pointer"
                   style={{ backgroundColor: '#eab308', color: '#000000', border: 'none' }}
-                  onClick={() => setShowSavePendingConfirmModal(true)}
+                  onClick={savePendingSale}
                 >
                   💾 Salvar Pendência
                 </button>
@@ -1545,7 +1545,7 @@ export const Pos = () => {
                 </div>
               </div>
               <button
-                onClick={() => setShowSavePendingConfirmModal(true)}
+                onClick={savePendingSale}
                 className="bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xs px-4 py-2 rounded uppercase transition-transform active:scale-95 shadow border-none cursor-pointer flex items-center gap-1.5"
               >
                 💾 Salvar Alterações
