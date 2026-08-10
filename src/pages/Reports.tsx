@@ -557,8 +557,8 @@ export const Reports = () => {
   const totalPaymentMethods = totalCash + totalPix + totalDebit + totalCredit;
 
   return (
-    <div className="flex flex-col h-full animate-fade-in">
-      <div className="page-header flex justify-between items-center">
+    <div className="flex flex-col min-h-full animate-fade-in pb-8">
+      <div className="page-header flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Relatórios</h1>
           <p className="text-muted">Acompanhe seu faturamento, custos e perdas</p>
@@ -640,14 +640,14 @@ export const Reports = () => {
 
       {activeTab === 'finance' && (
         <>
-      {/* Dashboard Summary Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      {/* 3 Top Cards Side by Side */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         
-        {/* Column 1: Items List */}
-        <div className="glass-panel p-6 flex flex-col justify-between" style={{ minHeight: '360px' }}>
+        {/* Column 1: Serviços e Itens */}
+        <div className="glass-panel p-6 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Serviços e Itens</h3>
-            <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar" style={{ maxHeight: '280px', paddingRight: '4px' }}>
+            <div className="flex flex-col gap-2">
               {categorizedItems.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center rounded border border-[var(--border)]" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '10px 12px' }}>
                   <span className="text-sm font-bold">{item.name} <span className="text-muted text-xs font-normal">({item.qty} un)</span></span>
@@ -661,8 +661,8 @@ export const Reports = () => {
           </div>
         </div>
 
-        {/* Column 2: Payment Methods */}
-        <div className="glass-panel p-6 flex flex-col justify-between" style={{ minHeight: '360px' }}>
+        {/* Column 2: Pagamentos */}
+        <div className="glass-panel p-6 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Pagamentos</h3>
             <div className="flex flex-col gap-2.5">
@@ -691,55 +691,58 @@ export const Reports = () => {
             </div>
           </div>
 
-          <div className="flex justify-between items-center rounded pt-3 mt-3" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="flex justify-between items-center rounded pt-3 mt-4" style={{ borderTop: '1px solid var(--border)' }}>
             <span className="font-bold uppercase text-sm text-muted">Total Recebido</span>
             <span className="font-black text-xl">R$ {totalPaymentMethods.toFixed(2).replace('.', ',')}</span>
           </div>
         </div>
 
-        {/* Column 3: Financial Breakdown */}
-        <div className="glass-panel p-6 flex flex-col" style={{ flex: 1, minWidth: '320px', maxWidth: '400px' }}>
-          <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Demonstrativo</h3>
-          <div className="flex flex-col" style={{ gap: '10px' }}>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted font-medium">Vendas Brutas</span>
-              <span className="font-bold">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</span>
+        {/* Column 3: Demonstrativo */}
+        <div className="glass-panel p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Demonstrativo</h3>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted font-medium">Vendas Brutas</span>
+                <span className="font-bold">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ color: '#f97316' }}>
+                <span className="text-sm font-medium">Descontos (-)</span>
+                <span className="font-bold">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ color: '#ef4444' }}>
+                <span className="text-sm font-medium">Devoluções (-)</span>
+                <span className="font-bold">R$ {totalReturns.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ color: '#d97706' }}>
+                <span className="text-sm font-medium">Insumos/Outros (-)</span>
+                <span className="font-bold">R$ {pureExpenses.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ color: '#f59e0b' }}>
+                <span className="text-sm font-medium">Pagamento Diárias (-)</span>
+                <span className="font-bold">R$ {totalWages.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ color: '#c084fc' }}>
+                <span className="text-sm font-medium">Taxas Maquininha (-)</span>
+                <span className="font-bold">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ color: 'var(--danger)' }}>
+                <span className="text-sm font-medium">Custo Produtos (-)</span>
+                <span className="font-bold">R$ {totalCosts.toFixed(2).replace('.', ',')}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center" style={{ color: '#f97316' }}>
-              <span className="text-sm font-medium">Descontos (-)</span>
-              <span className="font-bold">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center" style={{ color: '#ef4444' }}>
-              <span className="text-sm font-medium">Devoluções (-)</span>
-              <span className="font-bold">R$ {totalReturns.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center" style={{ color: '#d97706' }}>
-              <span className="text-sm font-medium">Insumos/Outros (-)</span>
-              <span className="font-bold">R$ {pureExpenses.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center" style={{ color: '#f59e0b' }}>
-              <span className="text-sm font-medium">Pagamento Diárias (-)</span>
-              <span className="font-bold">R$ {totalWages.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center" style={{ color: '#c084fc' }}>
-              <span className="text-sm font-medium">Taxas Maquininha (-)</span>
-              <span className="font-bold">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center" style={{ color: 'var(--danger)' }}>
-              <span className="text-sm font-medium">Custo Produtos (-)</span>
-              <span className="font-bold">R$ {totalCosts.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between items-center rounded" style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid var(--border)', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '12px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-              <span className="font-black uppercase text-sm" style={{ color: 'var(--success)' }}>Lucro Real</span>
-              <span className="text-xl font-black" style={{ color: 'var(--success)' }}>R$ {realProfit.toFixed(2).replace('.', ',')}</span>
-            </div>
+          </div>
+
+          <div className="flex justify-between items-center rounded mt-4" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '12px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <span className="font-black uppercase text-sm" style={{ color: 'var(--success)' }}>Lucro Real</span>
+            <span className="text-xl font-black" style={{ color: 'var(--success)' }}>R$ {realProfit.toFixed(2).replace('.', ',')}</span>
           </div>
         </div>
 
       </div>
 
       {/* Main List Table */}
-      <div className="glass-panel flex-1 flex flex-col min-h-0">
+      <div className="glass-panel flex flex-col mb-6">
         <div className="p-4 border-b border-[var(--border)]">
           <h2 className="text-lg font-bold">Transações do Período ({transactions.length})</h2>
         </div>
