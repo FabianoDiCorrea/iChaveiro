@@ -198,15 +198,22 @@ export const Reports = () => {
       });
     });
 
-    const pureExpenses = expenses.filter(t => !t.items[0]?.name.startsWith('Pagamento de Diária:'));
-    const wageExpenses = expenses.filter(t => t.items[0]?.name.startsWith('Pagamento de Diária:'));
+    const pureExpenses = expenses.filter(t => {
+      const nameLower = (t.items[0]?.name || '').toLowerCase();
+      return !nameLower.includes('diária') && !nameLower.includes('diaria');
+    });
+    const wageExpenses = expenses.filter(t => {
+      const nameLower = (t.items[0]?.name || '').toLowerCase();
+      return nameLower.includes('diária') || nameLower.includes('diaria');
+    });
     
     const totalPureExpenses = pureExpenses.reduce((sum, t) => sum + t.total, 0);
     const wageTotals: Record<string, number> = {};
     let totalWageExpenses = 0;
     
     wageExpenses.forEach(t => {
-      const name = t.items[0].name.replace('Pagamento de Diária: ', '');
+      const rawName = t.items[0]?.name || '';
+      const name = rawName.includes(':') ? rawName.split(':')[1].trim() : rawName;
       wageTotals[name] = (wageTotals[name] || 0) + t.total;
       totalWageExpenses += t.total;
     });
@@ -541,7 +548,8 @@ export const Reports = () => {
 
   expenses.forEach(t => {
     t.items.forEach(item => {
-      if (item.name.startsWith('Pagamento de Diária:')) {
+      const nameLower = (item.name || '').toLowerCase();
+      if (nameLower.includes('diária') || nameLower.includes('diaria')) {
         totalWages += item.total;
       } else {
         pureExpenses += item.total;

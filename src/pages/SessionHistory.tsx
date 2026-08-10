@@ -60,10 +60,14 @@ export const SessionHistory = () => {
       
       for (const t of filteredExpenses) {
         totalExpenses += t.total;
-        if (t.items && t.items.length > 0 && t.items[0].name.startsWith('Pagamento de Diária:')) {
-          const empName = t.items[0].name.replace('Pagamento de Diária: ', '');
-          wageDetails.push({ name: empName, amount: t.total });
-          totalWagesToPay += t.total;
+        if (t.items && t.items.length > 0) {
+          const rawName = t.items[0].name || '';
+          const nameLower = rawName.toLowerCase();
+          if (nameLower.includes('diária') || nameLower.includes('diaria')) {
+            const empName = rawName.includes(':') ? rawName.split(':')[1].trim() : rawName;
+            wageDetails.push({ name: empName, amount: t.total });
+            totalWagesToPay += t.total;
+          }
         }
       }
 
