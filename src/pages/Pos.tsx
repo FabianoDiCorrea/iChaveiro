@@ -2167,6 +2167,8 @@ export const Pos = () => {
               padding: '28px', 
               maxWidth: '520px', 
               width: '95%', 
+              maxHeight: '95vh',
+              overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
               display: 'flex', 
               flexDirection: 'column', 
