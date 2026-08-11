@@ -63,7 +63,7 @@ app.whenReady().then(() => {
 
   // Configurações do autoUpdater
   autoUpdater.autoDownload = false;
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdates();
 
   autoUpdater.on('update-available', (info) => {
     dialog.showMessageBox({
@@ -91,6 +91,11 @@ app.whenReady().then(() => {
 
   autoUpdater.on('error', (err) => {
     console.error('Erro no autoUpdater:', err);
+    dialog.showMessageBox({
+      type: 'error',
+      title: 'Erro na Atualização',
+      message: `Houve um erro ao verificar/baixar atualizações:\n${err.message || err}`
+    });
   });
 });
 
