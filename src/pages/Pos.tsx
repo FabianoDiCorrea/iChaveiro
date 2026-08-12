@@ -510,7 +510,8 @@ export const Pos = () => {
           machineFee: calculatedFee > 0 ? calculatedFee : undefined,
           paymentMethod,
           splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
-          clientCode: clientCode || undefined,
+          clientName: clientCode ? clientCode.trim() : undefined,
+          clientCode: clientCode ? clientCode.trim() : undefined,
           date: new Date()
         });
 
@@ -659,14 +660,24 @@ export const Pos = () => {
     }
   };
 
-  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number, method: 'cash' | 'pix' }[] = []) => {
+  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number, method: 'cash' | 'pix' | 'split', cashAmount: number, pixAmount: number }[] = []) => {
     const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
     const closedStr = new Date().toLocaleString('pt-BR');
     
-    const cashWagesTotal = wages.filter(w => w.method === 'cash').reduce((sum, w) => sum + w.amount, 0);
-    const expectedCash = session.initialCash + totals.cash - (totals.expenses || 0) - cashWagesTotal;
-    const difference = closeCash - (session.initialCash + totals.cash - (totals.expenses || 0));
-    const withdrawal = (closeCash - cashWagesTotal) - leftInDrawer;
+    let pendingCashWages = 0;
+    let pendingPixWages = 0;
+    wages.forEach(w => {
+      pendingCashWages += w.cashAmount;
+      pendingPixWages += w.pixAmount;
+    });
+
+    const expectedGrossCash = session.initialCash + totals.cash - (totals.expenses || 0);
+    const difference = closeCash - expectedGrossCash;
+    
+    const availableCashAfterWages = closeCash - pendingCashWages;
+    const withdrawal = availableCashAfterWages - leftInDrawer;
+
+    const resultadoTurno = totals.totalSales - (totals.expenses || 0) - pendingCashWages - pendingPixWages;
 
     const html = `
       <html>
@@ -692,71 +703,93 @@ export const Pos = () => {
         <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
         <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
-          <div class="text-center bold" style="font-size: 14px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
-          <div class="divider"></div>
-          <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
-          <div><span class="bold">Abertura:</span> ${openedStr}</div>
-          <div><span class="bold">Fechamento:</span> ${closedStr}</div>
-          <div class="divider"></div>
-          <table>
-            <tr><td class="bold">Fundo de Abertura:</td><td class="text-right">R$ ${session.initialCash.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Vendas Dinheiro (+):</td><td class="text-right">R$ ${totals.cash.toFixed(2).replace('.', ',')}</td></tr>
-            ${(totals.expenses || 0) > 0 ? `<tr><td class="bold">Despesas Dinheiro (-):</td><td class="text-right">R$ ${totals.expenses.toFixed(2).replace('.', ',')}</td></tr>` : ''}
-            ${wages.map(w => `<tr><td class="bold">Diária (${w.name} - ${w.method === 'pix' ? 'PIX' : 'Dinheiro'}) (-):</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>`).join('')}
-            <tr><td class="bold">Dinheiro Esperado:</td><td class="text-right font-black">R$ ${expectedCash.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Dinheiro Contado:</td><td class="text-right">R$ ${closeCash.toFixed(2).replace('.', ',')}</td></tr>
-            <tr style="color: ${difference >= 0 ? 'green' : 'red'};"><td class="bold">Diferença Dinheiro:</td><td class="text-right bold">R$ ${difference.toFixed(2).replace('.', ',')} (${difference >= 0 ? 'Sobrando' : 'Faltando'})</td></tr>
-          </table>
-          <div class="divider"></div>
-          <table>
-            <tr><td class="bold">Fundo p/ Amanhã:</td><td class="text-right">R$ ${leftInDrawer.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td class="bold">Retirada (Sangria):</td><td class="text-right bold">R$ ${withdrawal.toFixed(2).replace('.', ',')}</td></tr>
-          </table>
-          <div class="divider"></div>
-          <div class="bold text-center">OUTRAS FORMAS DE PAGAMENTO</div>
-          <table>
-            <tr><td>Vendas PIX:</td><td class="text-right">R$ ${totals.pix.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td>Vendas Débito:</td><td class="text-right">R$ ${totals.debit.toFixed(2).replace('.', ',')}</td></tr>
-            <tr><td>Vendas Crédito:</td><td class="text-right">R$ ${totals.credit.toFixed(2).replace('.', ',')}</td></tr>
-            <tr class="bold"><td>Total Período:</td><td class="text-right">R$ ${totals.totalSales.toFixed(2).replace('.', ',')}</td></tr>
-          </table>
-          <div class="divider" style="margin-bottom: 20px;"></div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-          <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-        </body>
-        </html>
-      `;
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '300px';
-      iframe.style.height = '0';
-      iframe.style.border = 'none';
-      document.body.appendChild(iframe);
-      iframe.contentDocument!.write(html);
-      iframe.contentDocument!.close();
-      
-      setTimeout(() => {
-        iframe.contentWindow!.print();
-        setTimeout(() => document.body.removeChild(iframe), 2000);
-      }, 500);
-    };
+        <div class="text-center bold" style="font-size: 14px; margin-top: 5px; text-transform: uppercase;">Fechamento de Caixa</div>
+        <div class="divider"></div>
+        <div><span class="bold">Operador:</span> <span style="text-transform: uppercase;">${session.profile}</span></div>
+        <div><span class="bold">Abertura:</span> ${openedStr}</div>
+        <div><span class="bold">Fechamento:</span> ${closedStr}</div>
+        <div class="divider"></div>
 
-  const handleCloseRegister = async () => {
+        <div class="bold text-center" style="margin-bottom: 5px;">RESUMO DAS VENDAS</div>
+        <table>
+          <tr><td>Dinheiro:</td><td class="text-right">R$ ${totals.cash.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>PIX:</td><td class="text-right">R$ ${totals.pix.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>Débito:</td><td class="text-right">R$ ${totals.debit.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>Crédito:</td><td class="text-right">R$ ${totals.credit.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td class="bold">Subtotal PIX + Cartões:</td><td class="text-right bold">R$ ${(totals.pix + totals.debit + totals.credit).toFixed(2).replace('.', ',')}</td></tr>
+          <tr style="border-top: 1px dashed #000;"><td class="bold">TOTAL VENDIDO:</td><td class="text-right bold">R$ ${totals.totalSales.toFixed(2).replace('.', ',')}</td></tr>
+        </table>
+        <div class="divider"></div>
+
+        <div class="bold text-center" style="margin-bottom: 5px;">CONFERÊNCIA DA GAVETA</div>
+        <table>
+          <tr><td>Fundo de Abertura:</td><td class="text-right">R$ ${session.initialCash.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td>(+) Vendas Dinheiro:</td><td class="text-right">R$ ${totals.cash.toFixed(2).replace('.', ',')}</td></tr>
+          ${(totals.expenses || 0) > 0 ? `<tr><td>(-) Despesas Dinheiro:</td><td class="text-right">R$ ${totals.expenses.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          <tr style="border-top: 1px dashed #000;"><td class="bold">ESPERADO P/ CONFERÊNCIA:</td><td class="text-right bold">R$ ${expectedGrossCash.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td class="bold">DINHEIRO CONTADO:</td><td class="text-right bold">R$ ${closeCash.toFixed(2).replace('.', ',')}</td></tr>
+          <tr style="color: ${difference >= 0 ? 'green' : 'red'};"><td class="bold">DIFERENÇA DO CAIXA:</td><td class="text-right bold">R$ ${difference.toFixed(2).replace('.', ',')} (${difference >= 0 ? 'Sobrando' : 'Faltando'})</td></tr>
+        </table>
+        <div class="divider"></div>
+
+        ${wages.length > 0 ? `
+        <div class="bold text-center" style="margin-bottom: 5px;">PAGAMENTO DAS DIÁRIAS</div>
+        <table>
+          ${wages.map(w => `
+            <tr><td colspan="2" class="bold" style="padding-top: 4px;">${w.name}</td></tr>
+            <tr><td>Total:</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>
+            ${w.method === 'cash' ? `<tr><td>Dinheiro:</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>` : 
+              w.method === 'pix' ? `<tr><td>PIX:</td><td class="text-right">R$ ${w.amount.toFixed(2).replace('.', ',')}</td></tr>` :
+              `<tr><td>Dinheiro:</td><td class="text-right">R$ ${w.cashAmount.toFixed(2).replace('.', ',')}</td></tr>
+               <tr><td>PIX:</td><td class="text-right">R$ ${w.pixAmount.toFixed(2).replace('.', ',')}</td></tr>`
+            }
+          `).join('')}
+        </table>
+        <div class="divider"></div>
+        ` : ''}
+
+        <div class="bold text-center" style="margin-bottom: 5px;">DESTINO DO DINHEIRO</div>
+        <table>
+          ${pendingCashWages > 0 ? `<tr><td>Diárias pagas em dinheiro:</td><td class="text-right">R$ ${pendingCashWages.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          <tr><td>Fundo para o próximo dia:</td><td class="text-right">R$ ${leftInDrawer.toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td class="bold">Sangria / Retirada:</td><td class="text-right bold">R$ ${withdrawal.toFixed(2).replace('.', ',')}</td></tr>
+        </table>
+        <div class="divider"></div>
+
+        <table>
+          <tr><td style="font-size: 11px;">Maquininha Líquido (PIX+Cartões):</td><td class="text-right">R$ ${(totals.pix + totals.debit + totals.credit - pendingPixWages).toFixed(2).replace('.', ',')}</td></tr>
+          <tr><td style="font-size: 11px;">Dinheiro Líquido:</td><td class="text-right">R$ ${(totals.cash - (totals.expenses || 0) - pendingCashWages).toFixed(2).replace('.', ',')}</td></tr>
+          <tr style="border-top: 1px dashed #000;"><td class="bold" style="font-size: 14px;">TOTAL DO DIA:</td><td class="text-right bold" style="font-size: 14px;">R$ ${resultadoTurno.toFixed(2).replace('.', ',')}</td></tr>
+        </table>
+        <div class="divider" style="margin-bottom: 20px;"></div>
+      </body>
+      </html>
+    `;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '300px';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    iframe.contentDocument!.write(html);
+    iframe.contentDocument!.close();
+    
+    setTimeout(() => {
+      iframe.contentWindow!.print();
+      setTimeout(() => document.body.removeChild(iframe), 2000);
+    }, 500);
+  };
+
+  const handleCloseRegister = async (shouldPrint: boolean = false) => {
     if (!activeSession) return;
     const closeCashVal = parseCurrency(closeRegisterCash);
     const leftInDrawerVal = parseCurrency(closeLeftInDrawer);
     
-    let totalCashWages = 0;
-    let totalPixWages = 0;
-    const wageDetails: { name: string, amount: number, method: 'cash' | 'pix' }[] = [];
+    let pendingCashWages = 0;
+    let pendingPixWages = 0;
+    const wageDetails: { name: string, amount: number, method: 'cash' | 'pix' | 'split', cashAmount: number, pixAmount: number }[] = [];
     
     try {
       if (activeSession.profile === 'chaveiro' && selectedEmployeesToPay.length > 0 && employees) {
@@ -780,17 +813,18 @@ export const Pos = () => {
             pixWage = totalWageVal - cashWage;
           }
 
-          totalCashWages += cashWage;
-          totalPixWages += pixWage;
+          pendingCashWages += cashWage;
+          pendingPixWages += pixWage;
+
+          wageDetails.push({ name: emp.name, amount: totalWageVal, method, cashAmount: cashWage, pixAmount: pixWage });
 
           if (cashWage > 0) {
-            wageDetails.push({ name: emp.name, amount: cashWage, method: 'cash' });
             await db.transactions.add({
               profile: activeSession.profile,
               type: 'expense',
               items: [{
                 service: 'other',
-                name: `Pagamento de Diária (Dinheiro): ${emp.name}`,
+                name: `Diária (Dinheiro): ${emp.name}`,
                 quantity: 1,
                 price: cashWage,
                 cost: 0,
@@ -803,13 +837,12 @@ export const Pos = () => {
           }
 
           if (pixWage > 0) {
-            wageDetails.push({ name: emp.name, amount: pixWage, method: 'pix' });
             await db.transactions.add({
               profile: activeSession.profile,
               type: 'expense',
               items: [{
                 service: 'other',
-                name: `Pagamento de Diária (PIX): ${emp.name}`,
+                name: `Diária (PIX): ${emp.name}`,
                 quantity: 1,
                 price: pixWage,
                 cost: 0,
@@ -825,15 +858,18 @@ export const Pos = () => {
 
       // Expected gross cash BEFORE taking cash wages out
       const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
-      const expectedNetCash = expectedGrossCash - totalCashWages;
-
+      
       // The user typed the GROSS physical cash they counted in the drawer (before taking wages out)
       const diffVal = closeCashVal - expectedGrossCash;
 
+      if (shouldPrint) {
+        printCloseReport(activeSession, sessionTotals, closeCashVal, leftInDrawerVal, wageDetails);
+      }
+
       await db.cashSessions.update(activeSession.id!, {
         closedAt: new Date(),
-        expectedCash: expectedNetCash,
-        actualCash: closeCashVal - totalCashWages,
+        expectedCash: expectedGrossCash,
+        actualCash: closeCashVal,
         leftInDrawer: leftInDrawerVal,
         difference: diffVal,
         status: 'closed',
@@ -2222,49 +2258,60 @@ export const Pos = () => {
                   {/* 1. Entradas e Saídas */}
                   <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.9rem' }}>
                     
-                    <div style={{ color: '#38bdf8', fontWeight: 'bold', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>RESUMO DE ENTRADAS</div>
+                    <div style={{ color: '#38bdf8', fontWeight: 'bold', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>RESUMO DAS VENDAS</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Dinheiro:</span>
+                      <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.cash.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>PIX:</span>
+                      <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.pix.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Débito:</span>
+                      <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.debit.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Crédito:</span>
+                      <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.credit.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.1)', marginTop: '4px', paddingTop: '4px' }}>
+                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>Subtotal PIX + Cartões:</span>
+                      <span style={{ fontWeight: 'bold' }}>R$ {(sessionTotals.pix + sessionTotals.debit + sessionTotals.credit).toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '4px', paddingTop: '4px', fontSize: '1rem' }}>
+                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>TOTAL VENDIDO:</span>
+                      <strong style={{ color: '#4ade80' }}>R$ {sessionTotals.totalSales.toFixed(2).replace('.', ',')}</strong>
+                    </div>
+
+                    <div style={{ color: '#f87171', fontWeight: 'bold', margin: '8px 0 4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>CONFERÊNCIA DA GAVETA</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#94a3b8' }}>Fundo de Abertura:</span>
                       <span style={{ fontWeight: 'bold' }}>R$ {activeSession.initialCash.toFixed(2).replace('.', ',')}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Vendas em Dinheiro:</span>
-                      <span style={{ fontWeight: 'bold', color: '#4ade80' }}>+ R$ {sessionTotals.cash.toFixed(2).replace('.', ',')}</span>
+                      <span style={{ color: '#94a3b8' }}>(+) Vendas em Dinheiro:</span>
+                      <span style={{ fontWeight: 'bold', color: '#4ade80' }}>R$ {sessionTotals.cash.toFixed(2).replace('.', ',')}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Vendas em PIX:</span>
-                      <span style={{ fontWeight: 'bold' }}>R$ {sessionTotals.pix.toFixed(2).replace('.', ',')}</span>
+                      <span style={{ color: '#f87171' }}>(-) Despesas em Dinheiro:</span>
+                      <span style={{ fontWeight: 'bold', color: '#f87171' }}>R$ {sessionTotals.expenses.toFixed(2).replace('.', ',')}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#94a3b8' }}>Vendas Cartão:</span>
-                      <span style={{ fontWeight: 'bold' }}>R$ {(sessionTotals.debit + sessionTotals.credit).toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    
-                    <div style={{ color: '#f87171', fontWeight: 'bold', margin: '8px 0 4px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>RESUMO DE SAÍDAS (CUSTOS)</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#f87171' }}>Despesas em Dinheiro:</span>
-                      <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {sessionTotals.expenses.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    {pendingCashWages > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#f87171' }}>Diárias em Dinheiro (Gaveta):</span>
-                        <span style={{ fontWeight: 'bold', color: '#f87171' }}>- R$ {pendingCashWages.toFixed(2).replace('.', ',')}</span>
-                      </div>
-                    )}
-                    {pendingPixWages > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#38bdf8' }}>Diárias em PIX (Maquininha/Conta):</span>
-                        <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>- R$ {pendingPixWages.toFixed(2).replace('.', ',')}</span>
-                      </div>
-                    )}
-
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.1)', marginTop: '8px', paddingTop: '8px', fontSize: '1rem' }}>
-                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>LUCRO BRUTO DO PERÍODO:</span>
-                      <strong style={{ color: '#4ade80' }}>R$ {(sessionTotals.totalSales - sessionTotals.expenses - totalPendingWages).toFixed(2).replace('.', ',')}</strong>
+                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>ESPERADO PARA CONFERÊNCIA:</span>
+                      <strong style={{ color: '#eab308' }}>R$ {expectedGrossCash.toFixed(2).replace('.', ',')}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem' }}>
-                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>DINHEIRO ESPERADO NA GAVETA:</span>
-                      <strong style={{ color: '#eab308' }}>R$ {expectedNetCash.toFixed(2).replace('.', ',')}</strong>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginTop: '12px', color: '#cbd5e1' }}>
+                      <span>PIX + Cartões Líquido (Pós-Diárias):</span>
+                      <span>R$ {(sessionTotals.pix + sessionTotals.credit + sessionTotals.debit - pendingPixWages).toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginTop: '4px', color: '#cbd5e1' }}>
+                      <span>Dinheiro Líquido (Pós-Despesas/Diárias):</span>
+                      <span>R$ {(sessionTotals.cash - sessionTotals.expenses - pendingCashWages).toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>TOTAL DO DIA:</span>
+                      <strong style={{ color: '#4ade80' }}>R$ {(sessionTotals.totalSales - sessionTotals.expenses - totalPendingWages).toFixed(2).replace('.', ',')}</strong>
                     </div>
                   </div>
 
@@ -2525,7 +2572,7 @@ export const Pos = () => {
                 style={{ 
                   flex: 1, 
                   padding: '12px', 
-                  fontSize: '1.1rem', 
+                  fontSize: '1rem', 
                   fontWeight: 'bold', 
                   borderRadius: '6px', 
                   backgroundColor: '#64748b', 
@@ -2537,11 +2584,11 @@ export const Pos = () => {
                 Voltar pro PDV
               </button>
               <button
-                onClick={handleCloseRegister}
+                onClick={() => handleCloseRegister(false)}
                 style={{ 
                   flex: 1, 
                   padding: '12px', 
-                  fontSize: '1.1rem', 
+                  fontSize: '1rem', 
                   fontWeight: 'bold', 
                   borderRadius: '6px', 
                   backgroundColor: '#dc2626', 
@@ -2550,7 +2597,23 @@ export const Pos = () => {
                   cursor: 'pointer' 
                 }}
               >
-                Confirmar Fechamento
+                Só Fechar
+              </button>
+              <button
+                onClick={() => handleCloseRegister(true)}
+                style={{ 
+                  flex: 1, 
+                  padding: '12px', 
+                  fontSize: '1rem', 
+                  fontWeight: 'bold', 
+                  borderRadius: '6px', 
+                  backgroundColor: '#3b82f6', 
+                  color: '#ffffff', 
+                  border: 'none', 
+                  cursor: 'pointer' 
+                }}
+              >
+                Fechar e Imprimir
               </button>
             </div>
           </div>

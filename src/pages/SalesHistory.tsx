@@ -151,7 +151,7 @@ export const SalesHistory = () => {
         <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
         <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 96738-5841 (WhatsApp)</div>
         <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
-        ${t.clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${t.clientCode}</div>` : ''}
+        ${(t.clientName || t.clientCode) ? `<div class="divider"></div><div class="bold">Cliente: ${t.clientName || t.clientCode}</div>` : ''}
         <div class="divider"></div>
         <table>
           <thead>
