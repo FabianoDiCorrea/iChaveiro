@@ -3,6 +3,10 @@ const path = require('path');
 const url = require('url');
 const { autoUpdater } = require('electron-updater');
 
+if (process.env.ICHAVEIRO_TEST_MODE === '1' && process.env.ICHAVEIRO_TEST_USER_DATA_DIR) {
+  app.setPath('userData', process.env.ICHAVEIRO_TEST_USER_DATA_DIR);
+}
+
 // Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
 app.commandLine.appendSwitch('kiosk-printing');
 
@@ -60,6 +64,9 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // No test profile should check, download or install an update.
+  if (process.env.ICHAVEIRO_TEST_MODE === '1') return;
 
   // Configurações do autoUpdater
   autoUpdater.autoDownload = false;

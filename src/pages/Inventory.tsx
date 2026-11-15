@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Product, type Profile, type ServiceType } from '../db/db';
 import { Search, Plus, Edit2, Trash2, Package, TrendingUp, List, X } from 'lucide-react';
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { recordInventoryPurchase } from '../db/inventoryPurchaseService';
 
 export const Inventory = () => {
   // Helper: check if this product instance has stock tracking enabled
@@ -20,7 +21,7 @@ export const Inventory = () => {
   const [historyCustomEnd, setHistoryCustomEnd] = useState('');
 
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
-  const [stockEntry, setStockEntry] = useState({ qty: '', cost: '' });
+  const [stockEntry, setStockEntry] = useState({ qty: '', cost: '', date: new Date().toISOString().slice(0,10), supplier: '', reference: '', notes: '' });
 
   const [formData, setFormData] = useState({
     profile: 'chaveiro' as Profile,
@@ -29,6 +30,8 @@ export const Inventory = () => {
     name: '',
     price: '',
     costPrice: '',
+    replacementCost: '',
+    reserveForRestock: false,
     stock: '',
     idealStock: '',
     serviceType: 'key' as ServiceType,
@@ -160,6 +163,8 @@ export const Inventory = () => {
         name: product.name, 
         price: product.price.toString(), 
         costPrice: product.costPrice.toString(),
+        replacementCost: product.replacementCostCents === undefined ? '' : (product.replacementCostCents / 100).toFixed(2),
+        reserveForRestock: product.reserveForRestock ?? false,
         stock: product.stock.toString(), 
         idealStock: product.idealStock ? product.idealStock.toString() : '',
         serviceType: product.serviceType,
@@ -176,6 +181,8 @@ export const Inventory = () => {
         name: '', 
         price: '', 
         costPrice: '0',
+        replacementCost: '',
+        reserveForRestock: false,
         stock: '0', 
         idealStock: '',
         serviceType: 'key',
@@ -199,6 +206,8 @@ export const Inventory = () => {
       name: formData.name,
       price: Number(formData.price),
       costPrice: formData.hasStock ? Number(formData.costPrice) : 0,
+      replacementCostCents: formData.hasStock && formData.replacementCost !== '' ? Math.round(Number(formData.replacementCost) * 100) : undefined,
+      reserveForRestock: formData.hasStock && formData.reserveForRestock,
       stock: formData.hasStock ? Number(formData.stock) : 0,
       idealStock: formData.hasStock && formData.idealStock ? Number(formData.idealStock) : undefined,
       serviceType: formData.serviceType,
@@ -208,11 +217,14 @@ export const Inventory = () => {
     };
 
     try {
-      if (editingProduct?.id) {
-        await db.products.update(editingProduct.id, productData);
-      } else {
-        await db.products.add(productData);
-      }
+      await db.transaction('rw', db.products, db.productCostHistory, db.managementAudit, async () => {
+        const id = editingProduct?.id ? (await db.products.update(editingProduct.id, productData), editingProduct.id) : await db.products.add(productData);
+        if (id === undefined) throw new Error('Produto não pôde ser salvo.');
+        if (editingProduct && (editingProduct.replacementCostCents !== productData.replacementCostCents || Math.round(editingProduct.costPrice * 100) !== Math.round(productData.costPrice * 100))) {
+          await db.productCostHistory.add({ productId: id, acquisitionCostCents: Math.round(productData.costPrice * 100), replacementCostCents: productData.replacementCostCents, at: new Date(), note: 'Alteração no cadastro de produto' });
+          await db.managementAudit.add({ at: new Date(), entity: 'produto', entityId: id, action: 'editar custos', before: { costPrice: editingProduct.costPrice, replacementCostCents: editingProduct.replacementCostCents }, after: { costPrice: productData.costPrice, replacementCostCents: productData.replacementCostCents } });
+        }
+      });
       setIsModalOpen(false);
     } catch (error) {
       console.error(error);
@@ -228,24 +240,9 @@ export const Inventory = () => {
     const cost = Number(stockEntry.cost);
     if (qty <= 0) return alert('Quantidade deve ser maior que zero.');
 
-    const currentStock = editingProduct.stock;
-    const currentCost = editingProduct.costPrice || 0;
-    
-    // Custo Médio Ponderado
-    const totalCurrentValue = currentStock * currentCost;
-    const totalNewValue = qty * cost;
-    const newStock = currentStock + qty;
-    const newAvgCost = (totalCurrentValue + totalNewValue) / newStock;
-
     try {
-      await db.products.update(editingProduct.id, {
-        stock: newStock,
-        costPrice: newAvgCost,
-        lastPurchasedDate: new Date(),
-        lastPurchasedQty: qty
-      });
-      setIsAddStockModalOpen(false);
-      setStockEntry({ qty: '', cost: '' });
+      await recordInventoryPurchase(editingProduct.id, qty, Math.round(cost * 100), { date: new Date(`${stockEntry.date}T12:00:00`), supplier: stockEntry.supplier || undefined, reference: stockEntry.reference || undefined, notes: stockEntry.notes || undefined, profile: editingProduct.profile });      setIsAddStockModalOpen(false);
+      setStockEntry({ qty: '', cost: '', date: new Date().toISOString().slice(0,10), supplier: '', reference: '', notes: '' });
     } catch (error) {
       console.error(error);
       alert('Erro ao atualizar estoque.');
@@ -516,7 +513,7 @@ export const Inventory = () => {
                             onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'}
                             onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
                             title="Registrar Compra (Estoque)" 
-                            onClick={() => { setEditingProduct(product); setIsAddStockModalOpen(true); setStockEntry({ qty: '', cost: product.costPrice ? product.costPrice.toString() : '' }); }}
+                            onClick={() => { setEditingProduct(product); setIsAddStockModalOpen(true); setStockEntry({ qty: '', cost: product.costPrice ? product.costPrice.toString() : '', date: new Date().toISOString().slice(0,10), supplier: '', reference: '', notes: '' }); }}
                           >
                             <Plus size={24} />
                           </button>
@@ -761,6 +758,12 @@ export const Inventory = () => {
                       onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
                     />
                   </div>
+                  <div>
+                    <label className="label">Custo padrão de reposição (R$ · opcional)</label>
+                    <input type="number" min="0" step="0.01" className="input" value={formData.replacementCost} onChange={e=>setFormData({...formData,replacementCost:e.target.value})} />
+                    <p className="text-xs text-muted">Planejamento gerencial; não substitui o custo médio usado nos relatórios históricos.</p>
+                    <label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={formData.reserveForRestock} onChange={e=>setFormData({...formData,reserveForRestock:e.target.checked})}/>Incluir vendas em sugestão de reserva para reposição</label>
+                  </div>
                 </>
               )}
               
@@ -823,6 +826,10 @@ export const Inventory = () => {
                   O sistema calculará automaticamente o <strong>Custo Médio Ponderado</strong> com as {editingProduct?.stock} unidades que já estão no estoque.
                 </p>
               </div>
+              <div><label className="label">Data da compra</label><input type="date" className="input" required value={stockEntry.date} onChange={e=>setStockEntry({...stockEntry,date:e.target.value})}/></div>
+              <div><label className="label">Fornecedor (opcional)</label><input className="input" value={stockEntry.supplier} onChange={e=>setStockEntry({...stockEntry,supplier:e.target.value})}/></div>
+              <div><label className="label">Identificação da compra (opcional)</label><input className="input" value={stockEntry.reference} onChange={e=>setStockEntry({...stockEntry,reference:e.target.value})}/></div>
+              <div><label className="label">Observações</label><input className="input" value={stockEntry.notes} onChange={e=>setStockEntry({...stockEntry,notes:e.target.value})}/></div>
               <div className="flex gap-2 justify-end mt-4">
                 <button type="button" className="btn btn-outline" onClick={() => setIsAddStockModalOpen(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-success">Adicionar Estoque</button>

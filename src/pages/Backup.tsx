@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db/db';
-import { exportDB, importInto } from 'dexie-export-import';
+import { exportDB } from 'dexie-export-import';
+import { BackupRestoreError, downloadBackupFromGitHub, restoreDexieBackup } from '../db/restore';
 import { Cloud, UploadCloud, DownloadCloud, CheckCircle, AlertCircle, Save, History } from 'lucide-react';
 
 export const Backup = () => {
@@ -109,38 +110,6 @@ export const Backup = () => {
     });
   };
 
-  const downloadFromGitHub = (cleanRepo: string): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', `https://api.github.com/repos/${cleanRepo}/contents/ichaveiro_backup.json`);
-      xhr.setRequestHeader('Authorization', `token ${token}`);
-      xhr.setRequestHeader('Accept', 'application/vnd.github.v3+json');
-
-      xhr.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = Math.round((e.loaded / e.total) * 100);
-          setProgress(percentComplete);
-          setStatus({ type: 'loading', message: `Baixando da Nuvem: ${percentComplete}%` });
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText));
-        } else {
-          try {
-            reject(new Error(JSON.parse(xhr.responseText).message || 'Erro desconhecido'));
-          } catch(e) {
-            reject(new Error('Erro na resposta do servidor'));
-          }
-        }
-      };
-
-      xhr.onerror = () => reject(new Error('Erro de rede ao conectar com GitHub'));
-      xhr.send();
-    });
-  };
-
   const handleBackup = async () => {
     if (!token || !repo) {
       setStatus({ type: 'error', message: 'Preencha o Token e o Repositório antes de fazer o backup.' });
@@ -195,7 +164,7 @@ export const Backup = () => {
       return;
     }
 
-    if (!window.confirm('ATENÇÃO: A restauração vai APAGAR os dados atuais e substituir pelo backup da nuvem. Tem certeza?')) {
+    if (!window.confirm('A restauração substituirá os dados locais somente após validar todo o backup. Em caso de falha, os dados atuais serão preservados. Continuar?')) {
       return;
     }
 
@@ -204,47 +173,25 @@ export const Backup = () => {
     setStatus({ type: 'loading', message: 'Conectando com GitHub...' });
 
     try {
-      const data = await downloadFromGitHub(cleanRepo);
-      const contentBase64 = data.content.replace(/\n/g, '');
-      
-      setProgress(0);
-      setStatus({ type: 'loading', message: 'Descompactando banco de dados...' });
-      
-      const byteCharacters = atob(contentBase64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/json' });
-
-      await db.delete();
-      await db.open();
-
-      setProgress(0);
-      setStatus({ type: 'loading', message: 'Restaurando dados locais...' });
-      
-      await importInto(db, blob, {
-        clearTablesBeforeImport: true,
-        acceptVersionDiff: true,
-        acceptMissingTables: true,
-        acceptNameDiff: true,
-        progressCallback: ({ totalRows, completedRows }) => {
-          if (totalRows > 0) {
-            const p = Math.round((completedRows / totalRows) * 100);
-            setProgress(p);
-            setStatus({ type: 'loading', message: `Restaurando dados: ${p}%` });
-          }
-        }
+      const downloaded = await downloadBackupFromGitHub(cleanRepo, token, percent => {
+        setProgress(percent);
+        setStatus({ type: 'loading', message: `Baixando da Nuvem: ${percent}%` });
       });
+
+      setProgress(0);
+      setStatus({ type: 'loading', message: 'Validando backup e preparando restauração segura...' });
+      const { cleanupFailed } = await restoreDexieBackup(db, downloaded);
 
       addToHistory('Restaurado');
       setProgress(100);
-      setStatus({ type: 'success', message: 'Backup restaurado com sucesso! Seus dados estão sincronizados.' });
-    } catch (error: any) {
-      console.error(error);
+      setStatus({ type: 'success', message: cleanupFailed
+        ? 'Backup restaurado. Não foi possível remover o banco temporário de validação.'
+        : 'Backup restaurado com sucesso! Seus dados estão sincronizados.' });
+    } catch (error) {
       setProgress(0);
-      setStatus({ type: 'error', message: `Erro ao restaurar dados: ${error.message || 'Desconhecido'}` });
+      setStatus({ type: 'error', message: error instanceof BackupRestoreError
+        ? error.message
+        : 'Falha inesperada na restauração. Os dados locais foram preservados.' });
     }
   };
 
@@ -358,7 +305,7 @@ export const Backup = () => {
           </div>
           <h3 className="text-2xl font-bold mb-2 text-danger" style={{ textTransform: 'uppercase' }}>Puxar da Nuvem</h3>
           <p className="text-muted text-sm" style={{ color: 'var(--text-main)' }}>
-            Restaura o último backup salvo. (Apaga dados atuais).
+            Valida o último backup antes de substituir os dados locais.
           </p>
         </button>
       </div>

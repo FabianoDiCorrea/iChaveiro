@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import type { Profile } from '../db/db';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
-import { Download, Calendar, Printer, X, Receipt } from 'lucide-react';
+import { Download, Calendar, Printer, X, Receipt, ChevronRight } from 'lucide-react';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { getReportDetailRows, type DetailKind } from './reportDetails';
+import { ReportModal } from '../components/ReportModal';
+import { financialTransaction } from '../db/financialAllocation';
 export const getCategorizedItems = (sales: any[]) => {
   const catTotals: Record<string, { name: string; qty: number; val: number }> = {
     key: { name: 'Chaves Comuns', qty: 0, val: 0 },
@@ -88,9 +93,24 @@ export const Reports = () => {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [selectedTx, setSelectedTx] = useState<any>(null);
+  const [selectedDetail, setSelectedDetail] = useState<DetailKind | null>(null);
+  const [showTransactions, setShowTransactions] = useState(false);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [detailPage, setDetailPage] = useState(1);
 
   const [printModalMode, setPrintModalMode] = useState<'thermal' | 'pdf' | null>(null);
   const [printModalDetailed, setPrintModalDetailed] = useState(false);
+
+  React.useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (selectedTx) setSelectedTx(null);
+      else if (selectedDetail) setSelectedDetail(null);
+      else if (showTransactions) setShowTransactions(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [selectedTx, selectedDetail, showTransactions]);
 
   const getDates = React.useCallback(() => {
     const now = new Date();
@@ -116,9 +136,8 @@ export const Reports = () => {
       return all.filter(t => {
         const d = new Date(t.date);
         const matchDate = d >= start && d <= end;
-        const matchProfile = viewProfile === 'todos' || t.profile === viewProfile;
-        return matchDate && matchProfile;
-      });
+        return matchDate;
+      }).map(t => financialTransaction(t, viewProfile)).filter((t): t is NonNullable<typeof t> => t !== null);
     },
     [start.getTime(), end.getTime(), viewProfile]
   );
@@ -142,8 +161,8 @@ export const Reports = () => {
     const allTx = await db.transactions.toArray();
     const txForProfile = allTx.filter(t => {
       const d = new Date(t.date);
-      return d >= start && d <= end && t.profile === profileToPrint;
-    });
+      return d >= start && d <= end;
+    }).map(t => financialTransaction(t, profileToPrint)).filter((t): t is NonNullable<typeof t> => t !== null);
 
     if (txForProfile.length === 0) return alert(`Nenhuma transação de ${profileToPrint === 'chaveiro' ? 'Chaveiro' : 'Fabiano'} no período.`);
 
@@ -205,6 +224,7 @@ export const Reports = () => {
       });
     });
 
+    totalCosts -= returns.filter(t => t.returnOfTransactionId).reduce((sum, t) => sum + t.items.reduce((value, item) => value + (item.cost || 0) * item.quantity, 0), 0);
     const pureExpenses = expenses.filter(t => {
       const nameLower = (t.items[0]?.name || '').toLowerCase();
       return !nameLower.includes('diária') && !nameLower.includes('diaria');
@@ -362,8 +382,8 @@ export const Reports = () => {
     const allTx = await db.transactions.toArray();
     const txForProfile = allTx.filter(t => {
       const d = new Date(t.date);
-      return d >= start && d <= end && t.profile === profileToPrint;
-    });
+      return d >= start && d <= end;
+    }).map(t => financialTransaction(t, profileToPrint)).filter((t): t is NonNullable<typeof t> => t !== null);
 
     if (txForProfile.length === 0) return alert(`Nenhuma transação de ${profileToPrint === 'chaveiro' ? 'Chaveiro' : 'Fabiano'} no período.`);
 
@@ -417,6 +437,7 @@ export const Reports = () => {
       });
     });
 
+    totalCosts -= returns.filter(t => t.returnOfTransactionId).reduce((sum, t) => sum + t.items.reduce((value, item) => value + (item.cost || 0) * item.quantity, 0), 0);
     const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
     const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
     const netTotal = totalSales - totalReturns - totalDiscounts;
@@ -567,12 +588,39 @@ export const Reports = () => {
     });
   });
 
+  totalCosts -= returns.filter(t => t.returnOfTransactionId).reduce((sum, t) => sum + t.items.reduce((value, item) => value + (item.cost || 0) * item.quantity, 0), 0);
   const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
   const totalExpenses = pureExpenses + totalWages;
   const netTotal = totalGrossSales - totalReturns - totalDiscounts;
   const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
   const categorizedItems = getCategorizedItems(sales);
   const totalPaymentMethods = totalCash + totalPix + totalDebit + totalCredit;
+  const detailTitles: Record<DetailKind, string> = {
+    gross: 'Vendas Brutas', discounts: 'Descontos', returns: 'Devoluções',
+    other: 'Insumos/Outros', wages: 'Pagamento Diárias', fees: 'Taxas Maquininha', costs: 'Custo Produtos'
+  };
+  const indicators: { kind: DetailKind; label: string; value: number; color: string }[] = [
+    { kind: 'gross', label: 'Vendas Brutas', value: totalGrossSales, color: 'var(--text-main)' },
+    { kind: 'discounts', label: 'Descontos (-)', value: totalDiscounts, color: '#fb923c' },
+    { kind: 'returns', label: 'Devoluções (-)', value: totalReturns, color: '#f87171' },
+    { kind: 'other', label: 'Insumos/Outros (-)', value: pureExpenses, color: '#fbbf24' },
+    { kind: 'wages', label: 'Pagamento Diárias (-)', value: totalWages, color: '#fbbf24' },
+    { kind: 'fees', label: 'Taxas Maquininha (-)', value: totalMachineFees, color: '#d8b4fe' },
+    { kind: 'costs', label: 'Custo Produtos (-)', value: totalCosts, color: '#f87171' }
+  ];
+  const detailRows = selectedDetail ? getReportDetailRows(transactions, selectedDetail) : [];
+  const detailTotal = detailRows.reduce((sum, row) => sum + row.value, 0);
+  const detailMoney = (value: number) => `R$ ${value.toFixed(Math.abs(value - Math.round(value * 100) / 100) > 0.000001 ? 4 : 2).replace('.', ',')}`;
+  const paymentName = (method?: string) => ({ cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito', split: 'Múltiplo' }[method || ''] || 'Não informado');
+  const pageSize = 20;
+  const sortedTransactions = [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime());
+  const transactionPageCount = Math.max(1, Math.ceil(sortedTransactions.length / pageSize));
+  const currentTransactionsPage = Math.min(transactionsPage, transactionPageCount);
+  const visibleTransactions = sortedTransactions.slice((currentTransactionsPage - 1) * pageSize, currentTransactionsPage * pageSize);
+  const detailPageCount = Math.max(1, Math.ceil(detailRows.length / pageSize));
+  const currentDetailPage = Math.min(detailPage, detailPageCount);
+  const visibleDetailRows = detailRows.slice((currentDetailPage - 1) * pageSize, currentDetailPage * pageSize);
+  const openDetail = (kind: DetailKind) => { setDetailPage(1); setSelectedDetail(kind); };
 
   return (
     <div className="flex flex-col min-h-full animate-fade-in pb-8">
@@ -719,35 +767,13 @@ export const Reports = () => {
         <div className="glass-panel p-6 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-muted uppercase tracking-wider mb-4 border-b border-[var(--border)] pb-2">Demonstrativo</h3>
-            <div className="flex flex-col gap-2.5">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted font-medium">Vendas Brutas</span>
-                <span className="font-bold">R$ {totalGrossSales.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between items-center" style={{ color: '#f97316' }}>
-                <span className="text-sm font-medium">Descontos (-)</span>
-                <span className="font-bold">R$ {totalDiscounts.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between items-center" style={{ color: '#ef4444' }}>
-                <span className="text-sm font-medium">Devoluções (-)</span>
-                <span className="font-bold">R$ {totalReturns.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between items-center" style={{ color: '#d97706' }}>
-                <span className="text-sm font-medium">Insumos/Outros (-)</span>
-                <span className="font-bold">R$ {pureExpenses.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between items-center" style={{ color: '#f59e0b' }}>
-                <span className="text-sm font-medium">Pagamento Diárias (-)</span>
-                <span className="font-bold">R$ {totalWages.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between items-center" style={{ color: '#c084fc' }}>
-                <span className="text-sm font-medium">Taxas Maquininha (-)</span>
-                <span className="font-bold">R$ {totalMachineFees.toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="flex justify-between items-center" style={{ color: 'var(--danger)' }}>
-                <span className="text-sm font-medium">Custo Produtos (-)</span>
-                <span className="font-bold">R$ {totalCosts.toFixed(2).replace('.', ',')}</span>
-              </div>
+            <div className="report-indicator-list">
+              {indicators.map(indicator => (
+                <button key={indicator.kind} type="button" className="report-indicator-row" style={{ color: indicator.color }} onClick={() => openDetail(indicator.kind)}>
+                  <span className="text-sm font-medium">{indicator.label}</span>
+                  <span className="report-indicator-value">R$ {indicator.value.toFixed(2).replace('.', ',')} <ChevronRight className="report-indicator-chevron" size={18} aria-hidden="true" /></span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -755,18 +781,30 @@ export const Reports = () => {
             <span className="font-black uppercase text-sm" style={{ color: 'var(--success)' }}>Lucro Real</span>
             <span className="text-xl font-black" style={{ color: 'var(--success)' }}>R$ {realProfit.toFixed(2).replace('.', ',')}</span>
           </div>
+          <button type="button" className="report-transactions-trigger" onClick={() => { setTransactionsPage(1); setShowTransactions(true); }}>
+            Ver transações do período ({transactions.length})
+          </button>
         </div>
 
       </div>
 
-      {/* Main List Table */}
-      <div className="glass-panel flex flex-col mb-6">
-        <div className="p-4 border-b border-[var(--border)]">
-          <h2 className="text-lg font-bold">Transações do Período ({transactions.length})</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-[var(--bg-surface)] sticky top-0">
+      {showTransactions && (
+      <ReportModal
+        title={`Transações do período (${transactions.length})`}
+        subtitle={`${viewProfile === 'todos' ? 'Geral' : viewProfile} · ${format(start, 'dd/MM/yyyy')} a ${format(end, 'dd/MM/yyyy')}`}
+        onClose={() => setShowTransactions(false)}
+        wide
+        footer={<>
+          <span>{transactions.length === 0 ? '0' : `${(currentTransactionsPage - 1) * pageSize + 1}–${Math.min(currentTransactionsPage * pageSize, transactions.length)}`} de {transactions.length}</span>
+          {transactionPageCount > 1 && <div className="report-modal-pagination">
+            <button type="button" className="report-page-button" disabled={currentTransactionsPage === 1} onClick={() => setTransactionsPage(currentTransactionsPage - 1)}>Anterior</button>
+            <span>Página {currentTransactionsPage} de {transactionPageCount}</span>
+            <button type="button" className="report-page-button" disabled={currentTransactionsPage === transactionPageCount} onClick={() => setTransactionsPage(currentTransactionsPage + 1)}>Próxima</button>
+          </div>}
+        </>}
+      >
+          <table className="report-modal-table">
+            <thead>
               <tr className="border-b border-[var(--border)] text-muted text-[11px] uppercase tracking-wider">
                 <th className="py-3 px-4 font-bold">Data/Hora</th>
                 <th className="py-3 px-4 font-bold">Operador</th>
@@ -782,7 +820,7 @@ export const Reports = () => {
               </tr>
             </thead>
             <tbody>
-              {transactions.sort((a, b) => b.date.getTime() - a.date.getTime()).map((t, i) => {
+              {visibleTransactions.map((t, i) => {
                 let typeBadge = null;
                 if (t.type === 'sale') {
                   const hasPhysicalProduct = t.items.some(item => {
@@ -827,7 +865,7 @@ export const Reports = () => {
                     key={t.id || i} 
                     className="border-b border-[var(--border)] last:border-0 table-row-hover"
                     onClick={() => setSelectedTx(t)}
-                    title="Clique para ver detalhes desta venda"
+                    title="Clique para ver detalhes desta transação"
                   >
                     <td className="py-3 px-4 text-xs font-mono whitespace-nowrap">{format(t.date, 'dd/MM/yyyy HH:mm')}</td>
                     <td className="py-3 px-4 text-xs font-bold uppercase text-yellow-500">{t.profile}</td>
@@ -851,13 +889,13 @@ export const Reports = () => {
               })}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-muted">Nenhuma transação no período.</td>
+                    <td colSpan={11} className="py-8 text-center text-muted">Nenhuma transação no período.</td>
                 </tr>
               )}
             </tbody>
           </table>
-        </div>
-      </div>
+      </ReportModal>
+      )}
       </>
       )}
 
@@ -1004,11 +1042,54 @@ export const Reports = () => {
         </div>
       )}
 
-      {selectedTx && (
+      {selectedDetail && (
+        <ReportModal
+          title={detailTitles[selectedDetail]}
+          subtitle={`${viewProfile === 'todos' ? 'Geral' : viewProfile} · ${format(start, 'dd/MM/yyyy')} a ${format(end, 'dd/MM/yyyy')} · ${detailRows.length} lançamento(s)`}
+          onClose={() => setSelectedDetail(null)}
+          footer={<div className="report-modal-footer-content">
+            <strong className="report-modal-total">Total do indicador: R$ {detailTotal.toFixed(2).replace('.', ',')}</strong>
+            {detailPageCount > 1 && <div className="report-modal-pagination">
+              <button type="button" className="report-page-button" disabled={currentDetailPage === 1} onClick={() => setDetailPage(currentDetailPage - 1)}>Anterior</button>
+              <span>Página {currentDetailPage} de {detailPageCount}</span>
+              <button type="button" className="report-page-button" disabled={currentDetailPage === detailPageCount} onClick={() => setDetailPage(currentDetailPage + 1)}>Próxima</button>
+            </div>}
+          </div>}
+        >
+          {detailRows.length === 0 ? <p className="report-modal-empty">Nenhum lançamento neste período e perfil.</p> : (
+            <table className="report-modal-table">
+              <thead><tr>
+                <th>Data</th>
+                {viewProfile === 'todos' && <th>Operador</th>}
+                {selectedDetail === 'wages' ? <><th>Funcionário</th><th>Forma de pagamento</th></> : <>
+                  <th>{selectedDetail === 'costs' ? 'Produto' : 'Descrição'}</th>
+                  {(selectedDetail === 'gross' || selectedDetail === 'other' || selectedDetail === 'costs') && <th>Categoria</th>}
+                  {selectedDetail === 'fees' && <><th>Forma de pagamento</th><th>Parcelas</th><th>Maquininha</th><th>Tarifa (%)</th><th className="report-number">Bruto</th><th className="report-number">Líquido previsto</th></>}
+                  {selectedDetail !== 'fees' && <th className="report-number">Quantidade</th>}
+                </>}
+                <th className="report-number">Valor</th>
+              </tr></thead>
+              <tbody>{visibleDetailRows.map((row, index) => <tr key={`${row.transactionId}-${(currentDetailPage - 1) * pageSize + index}`}>
+                <td>{format(row.date, 'dd/MM/yyyy HH:mm')}</td>
+                {viewProfile === 'todos' && <td>{row.profile === 'chaveiro' ? 'Chaveiro' : 'Fabiano'}</td>}
+                {selectedDetail === 'wages' ? <><td>{row.employee}</td><td>{paymentName(row.paymentMethod)}</td></> : <>
+                  <td>{row.description}</td>
+                  {(selectedDetail === 'gross' || selectedDetail === 'other' || selectedDetail === 'costs') && <td>{row.category}</td>}
+                  {selectedDetail === 'fees' && <><td>{paymentName(row.paymentMethod)}</td><td>{row.installments ? `${row.installments}x` : 'À vista/—'}</td><td>{row.machineName || row.category}</td><td>{row.machineRate === undefined ? 'Histórico legado' : `${row.machineRate.toFixed(2)}%`}</td><td className="report-number">{row.gross === undefined ? '—' : detailMoney(row.gross)}</td><td className="report-number">{row.net === undefined ? '—' : detailMoney(row.net)}</td></>}
+                  {selectedDetail !== 'fees' && <td className="report-number">{row.quantity}</td>}
+                </>}
+                <td className="report-number">{detailMoney(row.value)}</td>
+              </tr>)}</tbody>
+            </table>
+          )}
+        </ReportModal>
+      )}
+
+      {selectedTx && createPortal(
         <div 
           style={{ 
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
           }}
           className="animate-fade-in"
@@ -1024,8 +1105,8 @@ export const Reports = () => {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-              <h2 className="text-xl font-bold flex items-center gap-2"><Receipt size={24} className="text-primary"/> Detalhes da Transação #{selectedTx.id}</h2>
-              <button className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer" onClick={() => setSelectedTx(null)}>
+              <h2 className="text-xl font-bold flex items-center gap-2"><Receipt size={24} className="text-primary"/> Detalhes da Transação</h2>
+              <button type="button" aria-label="Fechar detalhes da transação" className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer" style={{ color: 'var(--text-main)' }} onClick={() => setSelectedTx(null)}>
                 <X size={24} />
               </button>
             </div>
@@ -1126,7 +1207,8 @@ export const Reports = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

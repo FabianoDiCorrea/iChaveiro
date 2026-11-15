@@ -1,13 +1,23 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud, Download, Briefcase } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud, Download, Briefcase, ChartNoAxesCombined } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../db/db';
+import { managementNotices } from '../db/managementNotices';
 import packageJson from '../../package.json';
+import { isTestMode } from '../db/testMode';
+import { visualVersion } from '../version';
 
 export const Sidebar = () => {
   const [updateAvailable, setUpdateAvailable] = React.useState<{ version: string, url: string } | null>(null);
+  const noticeCount = useLiveQuery(async () => {
+    const [accounts, occurrences, entries, states] = await Promise.all([db.managementAccounts.toArray(), db.managementOccurrences.toArray(), db.managementEntries.toArray(), db.managementNoticeStates.toArray()]);
+    return managementNotices(accounts, occurrences, entries, states).filter(row => !row.dismissed && !row.read).length;
+  }) || 0;
 
   React.useEffect(() => {
     const checkUpdate = async () => {
+      if (isTestMode()) return;
       try {
         const token = localStorage.getItem('github_token') || '';
         const headers: any = { 'Accept': 'application/vnd.github.v3+json' };
@@ -79,6 +89,11 @@ export const Sidebar = () => {
           <FileText size={20} />
           <span>Relatórios</span>
         </NavLink>
+        <NavLink to="/gerencia" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <ChartNoAxesCombined size={20} />
+          <span>Gerência</span>
+          {noticeCount > 0 && <span className="mg-menu-badge" aria-label={`${noticeCount} aviso(s) financeiro(s)`}>{noticeCount}</span>}
+        </NavLink>
         <NavLink to="/historico" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <History size={20} />
           <span>Histórico de Vendas</span>
@@ -98,7 +113,7 @@ export const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-[var(--border)] text-center text-xs text-muted flex flex-col gap-2">
-        <div>v{packageJson.version}</div>
+        <div>v{visualVersion(packageJson.version)}</div>
       </div>
     </div>
   );

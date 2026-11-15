@@ -1,15 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, type ServiceType, type PaymentMethod, type TransactionItem } from '../db/db';
+import { createPortal } from 'react-dom';
+import { db, type PaymentMethod, type TransactionItem } from '../db/db';
 import type { Profile } from '../db/db';
-import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Search, Plus, Tag, Package, Printer } from 'lucide-react';
+import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Tag, Package, Printer, ArrowLeftRight, CircleDollarSign, Power, TriangleAlert } from 'lucide-react';
+import { getFinancialShares, itemFinancialProfile } from '../db/financialAllocation';
+import { printedCustomerName } from '../db/receiptIdentity.cjs';
+import { newestPendingFirst, pendingNameOnly, pendingSaleChanges } from '../db/pendingSales';
+import { getCashSessionTotals } from '../db/cashTotals';
+import { dateKey, money, provisionStatus } from '../db/managementMath';
+import { moveFund, reserveForOccurrence, saveFund } from '../db/managementService';
+import type { MoneySource } from '../db/managementTypes';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { RegisterLossModal } from '../components/RegisterLossModal';
 import { runAutoBackup } from '../db/sync';
 import { StandaloneReceiptModal } from '../components/StandaloneReceiptModal';
 import { StorageBoxModal } from '../components/StorageBoxModal';
 import { differenceInDays } from 'date-fns';
+import { feeCents, rateFor } from '../db/machineService';
+import { restockSuggestionCents } from '../db/restockSuggestion';
 
 export const Pos = () => {
+  const [selectedMachineId, setSelectedMachineId] = useState<number | null | undefined>(undefined);
   const [transactionProfile, setTransactionProfile] = useState<Profile>(() => {
     return (localStorage.getItem('ichaveiro_last_profile') as Profile) || 'chaveiro';
   });
@@ -18,17 +29,31 @@ export const Pos = () => {
     localStorage.setItem('ichaveiro_last_profile', transactionProfile);
     const savedDrawerLeft = localStorage.getItem(`ichaveiro_last_drawer_left_${transactionProfile}`) || '0,00';
     setOpenRegisterCash(savedDrawerLeft);
+    setSelectedMachineId(undefined);
   }, [transactionProfile]);
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number }[]>([]);
+  const [splitPayments, setSplitPayments] = useState<{ method: PaymentMethod, amount: number; installments?: number; machineId?: number; machineFee?: number; netAmount?: number }[]>([]);
   const [currentSplitMethod, setCurrentSplitMethod] = useState<PaymentMethod>('pix');
+  const [currentSplitInstallments, setCurrentSplitInstallments] = useState(1);
+  const [creditInstallments, setCreditInstallments] = useState(1);
+  const [currentSplitMachineId, setCurrentSplitMachineId] = useState<number | null | undefined>(undefined);
   const [currentSplitAmount, setCurrentSplitAmount] = useState<string>('');
   const [clientCode, setClientCode] = useState('');
   const [searchProduct, setSearchProduct] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
+  const [searchOverlayStyle, setSearchOverlayStyle] = useState<React.CSSProperties>({});
   const [discount, setDiscount] = useState<string>('');
   const [cashReceived, setCashReceived] = useState<string>('');
   const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
+  const machineData = useLiveQuery(async () => ({ machines: await db.paymentMachines.toArray(), settings: await db.managementSettings.toArray() }));
+  const defaultMachineId = Number(machineData?.settings.find(row => row.key === `defaultMachine:${transactionProfile}`)?.value) || undefined;
+  const activeMachines = machineData?.machines.filter(machine => machine.active) || [];
+  const effectiveMachineId = selectedMachineId === undefined ? defaultMachineId : selectedMachineId || undefined;
+  const activeMachine = activeMachines.find(machine => machine.id === effectiveMachineId);
+  const paymentRate = (method: PaymentMethod, machineId: number | null | undefined = effectiveMachineId, installments = creditInstallments) => method === 'cash' || (method === 'pix' && !machineId) ? undefined : rateFor(activeMachines.find(machine => machine.id === machineId), method as 'pix'|'debit'|'credit', method === 'credit' ? installments : 1);
+  const paymentFeeCents = (method: PaymentMethod, grossCents: number, machineId = effectiveMachineId, installments = creditInstallments) => { const rate = paymentRate(method, machineId, installments); return rate ? feeCents(grossCents, rate) : 0; };
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printTwoCopies, setPrintTwoCopies] = useState(false);
@@ -39,10 +64,10 @@ export const Pos = () => {
 
   // Pending Sales states
   const [activePendingSaleId, setActivePendingSaleId] = useState<number | null>(null);
-  const [showPendingModal, setShowPendingModal] = useState(false);
-  const [showSavePendingConfirmModal, setShowSavePendingConfirmModal] = useState(false);
-  const [pendingClientName, setPendingClientName] = useState('');
-  const [pendingClientPhone, setPendingClientPhone] = useState('');
+  const [pickupName, setPickupName] = useState('');
+  const [pickupPhone, setPickupPhone] = useState('');
+  const [pickupNameError, setPickupNameError] = useState(false);
+  const pickupNameRef = useRef<HTMLInputElement>(null);
 
   // Cash Register (Caixa) Session states
   const [openRegisterCash, setOpenRegisterCash] = useState<string>('0,00');
@@ -54,6 +79,22 @@ export const Pos = () => {
   const [employeeSplitCash, setEmployeeSplitCash] = useState<Record<number, string>>({});
   const employees = useLiveQuery(() => db.employees?.toArray() || []);
   const [closeLeftInDrawer, setCloseLeftInDrawer] = useState<string>('0,00');
+  const [closeReservations, setCloseReservations] = useState<Record<string, { selected: boolean; amount: string; source: MoneySource }>>({});
+  const [restockSelected, setRestockSelected] = useState(false);
+  const [restockAmount, setRestockAmount] = useState('');
+  const [restockSource, setRestockSource] = useState<MoneySource>('cash');
+  const [restockFundId, setRestockFundId] = useState<number | null>(null);
+  const [restockFundName, setRestockFundName] = useState('');
+  const [creatingRestockFund, setCreatingRestockFund] = useState(false);
+  const closeInProgress = useRef(false);
+
+  const managementAtClose = useLiveQuery(async () => ({
+    accounts: await db.managementAccounts.toArray(),
+    occurrences: await db.managementOccurrences.toArray(),
+    entries: await db.managementEntries.toArray(),
+    funds: await db.managementFunds.toArray(),
+    products: await db.products.toArray()
+  }));
 
   // Expense states
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -76,48 +117,45 @@ export const Pos = () => {
       .toArray();
   }, [activeSession]);
 
+  const closeReserveLines = activeSession && managementAtClose ? [
+    ...managementAtClose.occurrences.filter(row => row.profile === activeSession.profile && row.status === 'open').flatMap(row => {
+      const plan = managementAtClose.accounts.find(candidate => candidate.id === row.accountId);
+      if (!plan?.provisionEnabled || plan.status !== 'active') return [];
+      const status = provisionStatus(plan, row, managementAtClose.entries, dateKey(new Date()));
+      return status.toFund > 0 && (status.suggested > 0 || status.pending > 0) ? [{ key: `account:${row.id}`, kind: 'account' as const, id: row.id!, name: row.name, daily: status.dailyCents, pending: status.pending, suggested: status.suggested }] : [];
+    }),
+    ...managementAtClose.funds.filter(row => row.profile === activeSession.profile && row.status === 'active' && (row.dailySuggestedCents || 0) > 0).map(row => ({ key: `fund:${row.id}`, kind: 'fund' as const, id: row.id!, name: row.name, daily: row.dailySuggestedCents || 0, pending: 0, suggested: row.dailySuggestedCents || 0 }))
+  ] : [];
+  const selectedCloseReservations = closeReserveLines.map(line => ({ ...line, choice: closeReservations[line.key] })).filter(line => line.choice?.selected).map(line => ({ ...line, amountCents: Math.round(Number(line.choice!.amount.replace(',', '.')) * 100) }));
+  const restockSuggestedCents = activeSession && managementAtClose ? restockSuggestionCents(sessionTransactions || [], managementAtClose.products || [], activeSession) : 0;
+  const activeRestockFunds = activeSession ? (managementAtClose?.funds || []).filter(fund => fund.profile === activeSession.profile && fund.status === 'active') : [];
+  const restockCents = restockSelected ? Math.round(Number(restockAmount.replace(',', '.')) * 100) : 0;
+  const closeCashReserves = (selectedCloseReservations.filter(line => line.choice!.source === 'cash').reduce((sum, line) => sum + line.amountCents, 0) + (restockSource === 'cash' ? restockCents : 0)) / 100;
+
   const sessionTotals = React.useMemo(() => {
-    if (!sessionTransactions) return { cash: 0, pix: 0, debit: 0, credit: 0, totalSales: 0, expenses: 0 };
-    const filteredSales = sessionTransactions.filter(t => t.profile === transactionProfile && t.type === 'sale');
-    const filteredExpenses = sessionTransactions.filter(t => t.profile === transactionProfile && t.type === 'expense');
-    
-    let cash = 0;
-    let pix = 0;
-    let debit = 0;
-    let credit = 0;
-
-    for (const t of filteredSales) {
-      if (t.paymentMethod === 'split' && t.splitPayments) {
-        for (const p of t.splitPayments) {
-          if (p.method === 'cash') cash += p.amount;
-          else if (p.method === 'pix') pix += p.amount;
-          else if (p.method === 'debit') debit += p.amount;
-          else if (p.method === 'credit') credit += p.amount;
-        }
-      } else {
-        if (t.paymentMethod === 'cash') cash += t.total;
-        else if (t.paymentMethod === 'pix') pix += t.total;
-        else if (t.paymentMethod === 'debit') debit += t.total;
-        else if (t.paymentMethod === 'credit') credit += t.total;
-      }
-    }
-
-    let expenses = 0;
-    for (const t of filteredExpenses) {
-      if (t.paymentMethod === 'cash') expenses += t.total;
-    }
-
-    return {
-      cash,
-      pix,
-      debit,
-      credit,
-      totalSales: cash + pix + debit + credit,
-      expenses
-    };
+    return getCashSessionTotals(sessionTransactions || [], transactionProfile);
   }, [sessionTransactions, transactionProfile]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!searchFocused || !searchProduct.trim() || !searchInputRef.current) return;
+    const update = () => {
+      const rect = searchInputRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = Math.min(440, window.innerWidth - 16);
+      const height = Math.min(290, Math.max(120, window.innerHeight - 16));
+      const below = window.innerHeight - rect.bottom - 8;
+      const above = rect.top - 8;
+      const openAbove = below < 190 && above > below;
+      const maxHeight = Math.max(120, Math.min(height, openAbove ? above : below));
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      setSearchOverlayStyle({ position: 'fixed', left, top: openAbove ? Math.max(8, rect.top - maxHeight) : rect.bottom, width, maxHeight, zIndex: 10000 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+  }, [searchFocused, searchProduct]);
 
   const products = useLiveQuery(
     () => db.products.toArray(),
@@ -131,8 +169,9 @@ export const Pos = () => {
   const pendingSales = pendingSalesQuery || [];
   
   const todayDate = new Date();
-  const recentPendingSales = pendingSales.filter(s => differenceInDays(todayDate, s.date) <= 7);
-  const archivedPendingSales = pendingSales.filter(s => differenceInDays(todayDate, s.date) > 7);
+  const recentPendingSales = pendingSales.filter(s => differenceInDays(todayDate, s.date) <= 7).sort(newestPendingFirst);
+  const archivedPendingSales = pendingSales.filter(s => differenceInDays(todayDate, s.date) > 7).sort(newestPendingFirst);
+  const profileLabel = (profile: Profile) => profile.charAt(0).toUpperCase() + profile.slice(1);
 
   const parseSearchInput = (input: string) => {
     const match = input.match(/^(.+?)(?:[xX*]\s*(\d+))?$/);
@@ -145,27 +184,25 @@ export const Pos = () => {
 
   let filteredProducts: any[] = [];
   let currentQty = 1;
-
-  if (searchProduct.trim() !== '') {
+  const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim().replace(/\s+/g, ' ');
+  if (searchProduct.trim()) {
     const parsed = parseSearchInput(searchProduct);
     currentQty = parsed.qty;
-    const term = parsed.term.toLowerCase();
-
-    const exactCodeMatches = products?.filter(p => p.code?.toLowerCase() === term) || [];
-    const isNumeric = /^\d+$/.test(term);
-
-    if (exactCodeMatches.length > 0) {
-      filteredProducts = exactCodeMatches;
-    } else if (!isNumeric) {
-      // Se for número e não bateu exato, não faz fallback pra não poluir a tela.
-      // Se tiver letras, faz busca por nome parcial.
-      filteredProducts = products?.filter(p =>
-        p.name.toLowerCase().includes(term) ||
-        (p.brand?.toLowerCase() || '').includes(term)
-      ) || [];
-    }
+    const term = normalizeSearch(parsed.term);
+    const tokens = term.split(' ').filter(Boolean);
+    filteredProducts = (products || []).map(product => {
+      const code = normalizeSearch(product.code || '');
+      const description = normalizeSearch(`${product.name} ${product.brand || ''} ${product.customCategory || ''}`);
+      const expanded = tokens.map(token => token === 'mola' || token === 'molinha' ? ['mola', 'molinha'] : [token]);
+      const textMatch = expanded.every(choices => choices.some(token => description.includes(token)));
+      const numeric = /^\d+$/.test(term);
+      if (!textMatch && !(numeric && code.includes(term))) return null;
+      const score = code === term ? 0 : code.startsWith(term) ? 1 : numeric && code.includes(term) ? 2 : description.startsWith(term) ? 3 : 4;
+      return { product, score };
+    }).filter((entry): entry is { product: NonNullable<typeof products>[number]; score: number } => entry !== null)
+      .sort((left, right) => left.score - right.score || left.product.name.localeCompare(right.product.name, 'pt-BR'))
+      .map(entry => entry.product).slice(0, 6);
   }
-
   const addProductToCart = (product: any, qty: number = 1) => {
     let displayName = product.name;
     if (product.code) displayName = `[${product.code}] ${displayName}`;
@@ -178,9 +215,11 @@ export const Pos = () => {
       price: product.price,
       originalPrice: product.price,
       cost: product.costPrice || 0,
+      replacementCost: product.replacementCostCents === undefined ? undefined : product.replacementCostCents / 100,
       total: product.price * qty,
       productId: product.id,
-      isService: product.isService
+      isService: product.isService,
+      financialProfile: transactionProfile
     } as any]);
 
     setSearchProduct('');
@@ -191,7 +230,13 @@ export const Pos = () => {
   const handleFastAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (filteredProducts.length > 0) {
-      addProductToCart(filteredProducts[0], currentQty);
+      const exactCode = filteredProducts.find(product => normalizeSearch(product.code || '') === normalizeSearch(parseSearchInput(searchProduct).term));
+      if (!exactCode && filteredProducts.length > 1) {
+        const selected = filteredProducts[Math.min(searchSelectedIndex, filteredProducts.length - 1)];
+        addProductToCart(selected, currentQty);
+        return;
+      }
+      addProductToCart(exactCode || filteredProducts[0], currentQty);
     } else if (searchProduct.trim() !== '') {
       // Manual add if not found
       const parsed = parseSearchInput(searchProduct);
@@ -202,7 +247,8 @@ export const Pos = () => {
         price: 0,
         originalPrice: 0,
         cost: 0,
-        total: 0
+        total: 0,
+        financialProfile: transactionProfile
       } as any]);
       setSearchProduct('');
       setCustomUnitPrice('');
@@ -252,30 +298,39 @@ export const Pos = () => {
   const discountValue = parseCurrency(discount);
   const totalAmount = Math.max(0, subtotal - discountValue);
   const changeValue = Math.max(0, parseCurrency(cashReceived) - totalAmount);
+  const hasOtherFinancialProfile = items.some(item => itemFinancialProfile(item, transactionProfile) !== transactionProfile);
+  const financialShares = hasOtherFinancialProfile ? getFinancialShares({
+    profile: transactionProfile, type: 'sale', items, total: totalAmount,
+    discount: discountValue, paymentMethod, splitPayments, date: new Date()
+  }) : [];
 
   const handleCheckout = () => {
     if (items.length === 0) return alert('Adicione itens ao caixa.');
     if (items.some(i => i.price <= 0)) return alert('Verifique os preços dos itens. Nenhum item pode ter preço 0.');
+    if (discountValue > subtotal) return alert('O desconto não pode superar o valor dos itens.');
     
     if (paymentMethod === 'split') {
       const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
-      if (Math.abs(splitTotal - totalAmount) > 0.01) {
+      if (Math.round(splitTotal * 100) !== Math.round(totalAmount * 100)) {
         return alert(`O total dos pagamentos (R$ ${splitTotal.toFixed(2).replace('.', ',')}) deve ser exatamente igual ao total da venda (R$ ${totalAmount.toFixed(2).replace('.', ',')}).`);
       }
     }
+
+    const checkRate = (method: PaymentMethod, machineId?: number) => {
+      if (method === 'cash' || (method === 'pix' && !machineId)) return true;
+      return !!rateFor(activeMachines.find(machine => machine.id === machineId), method as 'pix'|'debit'|'credit', method === 'credit' ? creditInstallments : 1);
+    };
+    if (paymentMethod === 'split') {
+        if (splitPayments.some(part => part.method !== 'cash' && !(part.method === 'pix' && !part.machineId) && !rateFor(activeMachines.find(machine => machine.id === part.machineId), part.method as 'pix'|'debit'|'credit', part.method === 'credit' ? part.installments || 1 : 1))) return alert('Configure a tarifa ou escolha uma maquininha com esta modalidade antes de finalizar.');
+    } else if (!checkRate(paymentMethod, effectiveMachineId)) return alert('A tarifa desta modalidade precisa ser configurada na maquininha selecionada.');
     
     setShowConfirmModal(true);
   };
 
   const handlePendingClick = () => {
     if (items.length === 0) return alert('Adicione itens para salvar a retirada.');
-    if (activePendingSaleId) {
-      setShowSavePendingConfirmModal(true);
-    } else {
-      setPendingClientName(clientCode || '');
-      setPendingClientPhone('');
-      setShowPendingModal(true);
-    }
+    if (!pickupName.trim()) { setPickupNameError(true); pickupNameRef.current?.focus(); return; }
+    void savePendingSale();
   };
 
   const handleCancelCart = () => {
@@ -285,15 +340,17 @@ export const Pos = () => {
     setCashReceived('');
     setCustomUnitPrice('');
     setSplitPayments([]);
-    setPendingClientName('');
-    setPendingClientPhone('');
+    setPickupName('');
+    setPickupPhone('');
+    setPickupNameError(false);
     setActivePendingSaleId(null);
     if (searchInputRef.current) searchInputRef.current.focus();
   };
 
   const savePendingSale = async () => {
-    const finalClientName = pendingClientName.trim() || clientCode.trim();
-    if (!finalClientName) return alert('Informe o nome do cliente.');
+    const finalClientName = pickupName.trim();
+    if (!finalClientName) { setPickupNameError(true); pickupNameRef.current?.focus(); return; }
+    if (discountValue > subtotal) return alert('O desconto não pode superar o valor dos itens.');
 
     try {
       await db.transaction('rw', db.pendingSales, db.products, async () => {
@@ -310,7 +367,8 @@ export const Pos = () => {
         } else {
           // Calculate stock difference for updated items
           const oldSale = await db.pendingSales.get(activePendingSaleId);
-          if (oldSale) {
+          if (!oldSale) throw new Error('Pedido pendente original não encontrado.');
+          {
             const oldQtyMap: Record<number, number> = {};
             for (const item of oldSale.items) {
               if (item.productId) oldQtyMap[item.productId] = (oldQtyMap[item.productId] || 0) + item.quantity;
@@ -335,33 +393,46 @@ export const Pos = () => {
         }
 
         if (activePendingSaleId) {
-          await db.pendingSales.update(activePendingSaleId, {
-            clientName: finalClientName,
-            clientPhone: pendingClientPhone,
-            items: items,
-            total: totalAmount,
-            date: new Date()
-          });
+          const oldSale = await db.pendingSales.get(activePendingSaleId);
+          if (!oldSale) throw new Error('Pedido pendente original não encontrado.');
+          const nameOnly = pendingNameOnly(oldSale, { items, discount: discountValue, paymentMethod, splitPayments });
+          await db.pendingSales.update(activePendingSaleId, nameOnly
+          ? { clientName: finalClientName, receiptName: clientCode.trim() || undefined, clientPhone: pickupPhone }
+            : pendingSaleChanges({
+              clientName: finalClientName,
+              receiptName: clientCode.trim() || undefined,
+              clientPhone: pickupPhone,
+              items,
+              total: totalAmount,
+              discount: discountValue,
+              paymentMethod,
+              splitPayments: paymentMethod === 'split' ? splitPayments : undefined
+            }));
         } else {
           await db.pendingSales.add({
             profile: transactionProfile,
             clientName: finalClientName,
-            clientPhone: pendingClientPhone,
+            receiptName: clientCode.trim() || undefined,
+            clientPhone: pickupPhone,
             items: items,
             total: totalAmount,
+            discount: discountValue,
+            paymentMethod,
+            splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
             date: new Date()
           });
         }
       });
 
-      setShowPendingModal(false);
-      setShowSavePendingConfirmModal(false);
       setItems([]);
       setClientCode('');
       setDiscount('');
-      setPendingClientName('');
-      setPendingClientPhone('');
+      setPickupName('');
+      setPickupNameError(false);
+      setPickupPhone('');
       setActivePendingSaleId(null);
+      setPaymentMethod('cash');
+      setSplitPayments([]);
       if (searchInputRef.current) searchInputRef.current.focus();
     } catch (err) {
       console.error(err);
@@ -371,14 +442,15 @@ export const Pos = () => {
 
   const loadPendingSale = (sale: any) => {
     setActivePendingSaleId(sale.id!);
-    setPendingClientName(sale.clientName || '');
-    setPendingClientPhone(sale.clientPhone || '');
+    setPickupName(sale.clientName || '');
+    setPickupPhone(sale.clientPhone || '');
     setItems(sale.items);
-    setClientCode(sale.clientName || '');
-    setDiscount('');
+    setClientCode(sale.receiptName || '');
+    setDiscount(sale.discount ? sale.discount.toFixed(2).replace('.', ',') : '');
+    setPaymentMethod(sale.paymentMethod || 'cash');
     setCashReceived('');
     setCustomUnitPrice('');
-    setSplitPayments([]);
+    setSplitPayments(sale.splitPayments || []);
     if (searchInputRef.current) searchInputRef.current.focus();
   };
 
@@ -410,9 +482,12 @@ export const Pos = () => {
   const handleRescueStorageBox = (sale: any) => {
     setItems(sale.items);
     setActivePendingSaleId(sale.id!);
-    setClientCode(sale.clientName || '');
-    setPendingClientName(sale.clientName || '');
-    setPendingClientPhone(sale.clientPhone || '');
+    setClientCode(sale.receiptName || '');
+    setPickupName(sale.clientName || '');
+    setPickupPhone(sale.clientPhone || '');
+    setDiscount(sale.discount ? sale.discount.toFixed(2).replace('.', ',') : '');
+    setPaymentMethod(sale.paymentMethod || 'cash');
+    setSplitPayments(sale.splitPayments || []);
     setShowStorageBoxModal(false);
   };
 
@@ -440,6 +515,8 @@ export const Pos = () => {
 
   const completeCheckout = async (shouldPrint: boolean, twoCopies: boolean = false) => {
     try {
+      // Save the exact identity printed now so historical reprints never depend on changed form state.
+      const printedClientName = printedCustomerName(clientCode, pickupName);
       await db.transaction('rw', db.transactions, db.products, db.pendingSales, async () => {
         // Decrement stock for products (Only for keys, springs and screws)
         if (!activePendingSaleId) {
@@ -478,28 +555,16 @@ export const Pos = () => {
           }
         }
 
-        let calculatedFee = 0;
-        if (paymentMethod === 'split') {
-          for (const p of splitPayments) {
-            if (transactionProfile === 'chaveiro') {
-              if (p.method === 'debit') calculatedFee += p.amount * 0.0199;
-              else if (p.method === 'credit') calculatedFee += p.amount * 0.0498;
-            } else if (transactionProfile === 'fabiano') {
-              if (p.method === 'pix') calculatedFee += p.amount * 0.0045;
-              else if (p.method === 'debit') calculatedFee += p.amount * 0.0198;
-              else if (p.method === 'credit') calculatedFee += p.amount * 0.0486;
-            }
-          }
-        } else {
-          if (transactionProfile === 'chaveiro') {
-            if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0199;
-            else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0498;
-          } else if (transactionProfile === 'fabiano') {
-            if (paymentMethod === 'pix') calculatedFee = totalAmount * 0.0045;
-            else if (paymentMethod === 'debit') calculatedFee = totalAmount * 0.0198;
-            else if (paymentMethod === 'credit') calculatedFee = totalAmount * 0.0486;
-          }
-        }
+        const machinePayments = paymentMethod === 'split'
+          ? splitPayments.filter(part => part.method !== 'cash').map(part => {
+            const machine = activeMachines.find(row => row.id === part.machineId);
+            const grossCents = Math.round(part.amount * 100);
+            const rate = paymentRate(part.method, part.machineId, part.installments || 1);
+            const fee = rate ? feeCents(grossCents, rate) : 0;
+            return { method: part.method, installments: part.installments, machineId: machine?.id, machineName: machine?.name || (part.method === 'pix' ? 'PIX direto em conta' : undefined), ownerProfile: machine?.ownerProfile, ratePercent: rate?.percent, grossCents, feeCents: fee, netCents: grossCents - fee };
+          })
+          : (() => { const machine = activeMachines.find(row => row.id === effectiveMachineId); const grossCents = Math.round(totalAmount * 100); const rate = paymentRate(paymentMethod, effectiveMachineId, creditInstallments); const fee = rate ? feeCents(grossCents, rate) : 0; return machine || paymentMethod === 'pix' ? [{ method: paymentMethod, installments: paymentMethod === 'credit' ? creditInstallments : undefined, machineId: machine?.id, machineName: machine?.name || (paymentMethod === 'pix' ? 'PIX direto em conta' : undefined), ownerProfile: machine?.ownerProfile, ratePercent: rate?.percent, grossCents, feeCents: fee, netCents: grossCents - fee }] : []; })();
+        const calculatedFeeCents = machinePayments.reduce((sum, part) => sum + (part.feeCents || 0), 0);
 
         await db.transactions.add({
           profile: transactionProfile,
@@ -507,10 +572,16 @@ export const Pos = () => {
           items,
           total: totalAmount,
           discount: discountValue > 0 ? discountValue : undefined,
-          machineFee: calculatedFee > 0 ? calculatedFee : undefined,
+          machineFee: calculatedFeeCents > 0 ? calculatedFeeCents / 100 : undefined,
+          machineFeeCents: calculatedFeeCents || undefined,
+          machinePayments: machinePayments.length ? machinePayments : undefined,
+          machineId: paymentMethod !== 'split' ? effectiveMachineId : undefined,
+          machineOwnerProfile: paymentMethod !== 'split' ? activeMachines.find(machine => machine.id === effectiveMachineId)?.ownerProfile : undefined,
+          machineFeeRate: paymentMethod !== 'split' ? paymentRate(paymentMethod, effectiveMachineId, creditInstallments)?.percent : undefined,
+          machineNetCents: machinePayments.length ? machinePayments.reduce((sum, part) => sum + (part.netCents || 0), 0) : undefined,
           paymentMethod,
           splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
-          clientName: clientCode ? clientCode.trim() : undefined,
+          clientName: printedClientName || undefined,
           clientCode: clientCode ? clientCode.trim() : undefined,
           date: new Date()
         });
@@ -550,17 +621,12 @@ export const Pos = () => {
             </style>
           </head>
           <body>
-            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
-            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
               <div class="text-center bold" style="font-size: 12px; margin-top: 5px;">Rua Cardoso de Morais, Frente ao 202</div>
               <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
               <div class="text-center bold" style="font-size: 13px; margin-top: 2px; margin-bottom: 5px;">Tel: (21) 96738-5841 (WhatsApp)</div>
               <div class="text-center" style="font-size: 11px;">Data: ${dateStr}</div>
-              ${clientCode ? `<div class="divider"></div><div class="bold">Cliente: ${clientCode}</div>` : ''}
+              ${printedClientName ? `<div class="divider"></div><div class="bold">Cliente: ${printedClientName}</div>` : ''}
               <div class="divider"></div>
               <table>
                 <thead>
@@ -610,6 +676,7 @@ export const Pos = () => {
                 </table>
                 <div class="divider"></div>
                 <div class="text-center" style="margin-bottom: 10px; font-weight: bold; font-size: 13px;">Obrigado pela preferência!</div>
+                <div class="text-center" style="font-size: 11px; font-weight: bold; margin-bottom: 3px;">Insta - @chaveiroecutelaria.lidio.rj</div>
                 <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
                 <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
                 <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
@@ -651,6 +718,9 @@ export const Pos = () => {
       setCashReceived('');
       setCustomUnitPrice('');
       setSplitPayments([]);
+      setPickupName('');
+      setPickupPhone('');
+      setPickupNameError(false);
       setActivePendingSaleId(null);
       setPrintTwoCopies(false);
       if (searchInputRef.current) searchInputRef.current.focus();
@@ -660,7 +730,7 @@ export const Pos = () => {
     }
   };
 
-  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number, method: 'cash' | 'pix' | 'split', cashAmount: number, pixAmount: number }[] = []) => {
+  const printCloseReport = (session: any, totals: any, closeCash: number, leftInDrawer: number, wages: { name: string, amount: number, method: 'cash' | 'pix' | 'split', cashAmount: number, pixAmount: number }[] = [], cashReserves = 0) => {
     const openedStr = new Date(session.openedAt).toLocaleString('pt-BR');
     const closedStr = new Date().toLocaleString('pt-BR');
     
@@ -675,7 +745,7 @@ export const Pos = () => {
     const difference = closeCash - expectedGrossCash;
     
     const availableCashAfterWages = closeCash - pendingCashWages;
-    const withdrawal = availableCashAfterWages - leftInDrawer;
+    const withdrawal = availableCashAfterWages - leftInDrawer - cashReserves;
 
     const resultadoTurno = totals.totalSales - (totals.expenses || 0) - pendingCashWages - pendingPixWages;
 
@@ -751,6 +821,7 @@ export const Pos = () => {
         <div class="bold text-center" style="margin-bottom: 5px;">DESTINO DO DINHEIRO</div>
         <table>
           ${pendingCashWages > 0 ? `<tr><td>Diárias pagas em dinheiro:</td><td class="text-right">R$ ${pendingCashWages.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          ${cashReserves > 0 ? `<tr><td>Reservas separadas em dinheiro:</td><td class="text-right">R$ ${cashReserves.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           <tr><td>Fundo para o próximo dia:</td><td class="text-right">R$ ${leftInDrawer.toFixed(2).replace('.', ',')}</td></tr>
           <tr><td class="bold">Sangria / Retirada:</td><td class="text-right bold">R$ ${withdrawal.toFixed(2).replace('.', ',')}</td></tr>
         </table>
@@ -783,20 +854,27 @@ export const Pos = () => {
   };
 
   const handleCloseRegister = async (shouldPrint: boolean = false) => {
-    if (!activeSession) return;
+    if (!activeSession || closeInProgress.current) return;
+    closeInProgress.current = true;
     const closeCashVal = parseCurrency(closeRegisterCash);
     const leftInDrawerVal = parseCurrency(closeLeftInDrawer);
     
     let pendingCashWages = 0;
-    let pendingPixWages = 0;
     const wageDetails: { name: string, amount: number, method: 'cash' | 'pix' | 'split', cashAmount: number, pixAmount: number }[] = [];
     
     try {
+      if (!Number.isFinite(closeCashVal) || !Number.isFinite(leftInDrawerVal) || closeCashVal < 0 || leftInDrawerVal < 0) throw new Error('Informe valores válidos para o fechamento.');
+      if (selectedCloseReservations.some(line => !Number.isSafeInteger(line.amountCents) || line.amountCents <= 0)) throw new Error('Informe um valor válido para cada reserva selecionada.');
+      if (restockSelected && (!Number.isSafeInteger(restockCents) || restockCents <= 0)) throw new Error('Informe um valor válido para a reserva de reposição.');
+      await db.transaction('rw', [db.transactions, db.cashSessions, db.managementAccounts, db.managementOccurrences, db.managementEntries, db.managementFunds, db.managementAudit], async () => {
+      const currentSession = await db.cashSessions.get(activeSession.id!);
+      if (currentSession?.status !== 'open') throw new Error('Este caixa já foi fechado.');
       if (activeSession.profile === 'chaveiro' && selectedEmployeesToPay.length > 0 && employees) {
         const empsToPay = employees.filter(e => selectedEmployeesToPay.includes(e.id!));
         for (const emp of empsToPay) {
           const wageStr = customWages[emp.id!] !== undefined ? customWages[emp.id!] : emp.dailyWage.toFixed(2).replace('.', ',');
           const totalWageVal = parseCurrency(wageStr);
+          if (!Number.isFinite(totalWageVal) || totalWageVal < 0) throw new Error(`Diária inválida para ${emp.name}.`);
           const method = employeePaymentMethods[emp.id!] || 'cash';
           
           let cashWage = 0;
@@ -814,7 +892,6 @@ export const Pos = () => {
           }
 
           pendingCashWages += cashWage;
-          pendingPixWages += pixWage;
 
           wageDetails.push({ name: emp.name, amount: totalWageVal, method, cashAmount: cashWage, pixAmount: pixWage });
 
@@ -858,12 +935,21 @@ export const Pos = () => {
 
       // Expected gross cash BEFORE taking cash wages out
       const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
+      if (Math.round((pendingCashWages + closeCashReserves + leftInDrawerVal) * 100) > Math.round(closeCashVal * 100)) throw new Error('Diárias, reservas em dinheiro e fundo do próximo dia ultrapassam o dinheiro contado.');
       
       // The user typed the GROSS physical cash they counted in the drawer (before taking wages out)
       const diffVal = closeCashVal - expectedGrossCash;
 
-      if (shouldPrint) {
-        printCloseReport(activeSession, sessionTotals, closeCashVal, leftInDrawerVal, wageDetails);
+      for (const line of selectedCloseReservations) {
+        if (line.kind === 'account') {
+          await reserveForOccurrence(line.id, line.amountCents, line.choice!.source, { cashSessionId: activeSession.id, key: `close:${activeSession.id}:${line.key}` });
+        } else {
+          await moveFund(line.id, line.amountCents, 'deposit', line.choice!.source, 'Reserva no fechamento do caixa', undefined, { cashSessionId: activeSession.id, key: `close:${activeSession.id}:${line.key}` });
+        }
+      }
+      if (restockSelected && restockCents > 0) {
+        if (!restockFundId || !activeRestockFunds.some(fund => fund.id === restockFundId)) throw new Error('Escolha um fundo de reposição ativo deste perfil.');
+        await moveFund(restockFundId, restockCents, 'deposit', restockSource, 'Reserva de reposição no fechamento do caixa', undefined, { cashSessionId: activeSession.id, key: `close:${activeSession.id}:reposição` });
       }
 
       await db.cashSessions.update(activeSession.id!, {
@@ -878,6 +964,9 @@ export const Pos = () => {
         debitSales: sessionTotals.debit,
         creditSales: sessionTotals.credit
       });
+      });
+
+      if (shouldPrint) printCloseReport(activeSession, sessionTotals, closeCashVal, leftInDrawerVal, wageDetails, closeCashReserves);
 
       localStorage.setItem(`ichaveiro_last_drawer_left_${transactionProfile}`, closeLeftInDrawer);
       setOpenRegisterCash(closeLeftInDrawer);
@@ -887,11 +976,19 @@ export const Pos = () => {
       setCustomWages({});
       setEmployeePaymentMethods({});
       setEmployeeSplitCash({});
+      setCloseReservations({});
+      setRestockSelected(false);
+      setRestockAmount('');
+      setRestockFundId(null);
+      setRestockFundName('');
+      setCreatingRestockFund(false);
       
       runAutoBackup();
     } catch (err) {
       console.error(err);
-      alert("Erro ao fechar caixa.");
+      alert(err instanceof Error ? err.message : 'Erro ao fechar caixa.');
+    } finally {
+      closeInProgress.current = false;
     }
   };
 
@@ -1088,7 +1185,7 @@ export const Pos = () => {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden animate-fade-in font-sans">
+    <div className="pos-root flex flex-col h-full overflow-hidden animate-fade-in font-sans">
       <style>{`
         .pos-received-input {
           background-color: rgba(0, 0, 0, 0.4) !important;
@@ -1134,7 +1231,7 @@ export const Pos = () => {
           animation: scaleIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
       `}</style>
-      <div className="bg-[var(--bg-surface)] border-b-2 border-red-600 rounded p-4 mb-4 flex justify-between items-center shadow">
+      <div className="pos-register-header bg-[var(--bg-surface)] border-b-2 border-red-600 rounded p-4 mb-4 flex justify-between items-center shadow">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <span className="text-red-500">Caixa</span> Aberto
@@ -1143,8 +1240,7 @@ export const Pos = () => {
             Operador: <strong className="text-yellow-500">{transactionProfile === 'chaveiro' ? 'Chaveiro' : 'Fabiano'}</strong> | Fundo Inicial: <strong className="text-green-400">R$ {activeSession.initialCash.toFixed(2).replace('.', ',')}</strong>
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#eab308', letterSpacing: '0.05em', marginRight: '8px' }} className="hidden md:inline">CHAVEIRO & CUTELARIA</span>
+        <div className="pos-register-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button
             onClick={() => {
               const expected = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
@@ -1171,7 +1267,7 @@ export const Pos = () => {
               e.currentTarget.style.borderColor = '#475569';
             }}
           >
-            $ VER CAIXA $
+            <Banknote size={15} /> Ver caixa
           </button>
           <button
             onClick={() => {
@@ -1195,10 +1291,12 @@ export const Pos = () => {
             onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
             onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
           >
-            Registrar Despesa
+            <CircleDollarSign size={15} /> Registrar despesa
           </button>
           <button
             onClick={() => setShowStorageBoxModal(true)}
+            title="Arquivo de pedidos pendentes"
+            aria-label="Arquivo de pedidos pendentes"
             style={{
               backgroundColor: '#a855f7',
               color: '#ffffff',
@@ -1261,7 +1359,7 @@ export const Pos = () => {
             onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
             onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
           >
-            Registrar Perda
+            <TriangleAlert size={15} /> Registrar perda
           </button>
           <button
             onClick={() => {
@@ -1286,7 +1384,7 @@ export const Pos = () => {
             onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
             onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
           >
-            Fechar Caixa
+            <Power size={15} /> Fechar caixa
           </button>
         </div>
       </div>
@@ -1294,7 +1392,11 @@ export const Pos = () => {
       <div className="flex gap-6 flex-1 min-h-0 overflow-hidden pb-4">
         {/* Left column: Inputs and Info */}
         <div className="w-[500px] flex flex-col gap-4 border-r-4 border-red-600 pr-6 overflow-y-auto custom-scrollbar">
-          <form onSubmit={handleFastAdd} className="flex flex-col gap-2 mb-2">
+          <form onSubmit={handleFastAdd} className="flex flex-col gap-2 mb-2" style={{ position: 'relative', zIndex: searchFocused && filteredProducts.length ? 50 : 'auto' }} onKeyDown={event => {
+            if (event.key === 'ArrowDown' && filteredProducts.length) { event.preventDefault(); setSearchSelectedIndex(index => (index + 1) % filteredProducts.length); }
+            if (event.key === 'ArrowUp' && filteredProducts.length) { event.preventDefault(); setSearchSelectedIndex(index => (index + filteredProducts.length - 1) % filteredProducts.length); }
+            if (event.key === 'Escape') { setSearchFocused(false); setSearchProduct(''); }
+          }}>
             <label className="text-white font-bold px-1 uppercase text-lg">Código do Produto</label>
             <div className="flex gap-3 items-stretch w-full">
               <div className="bg-white rounded p-1 shadow-inner border-4 border-gray-300 focus-within:border-yellow-500 flex-shrink-0 flex items-center" style={{ width: '310px' }}>
@@ -1305,7 +1407,9 @@ export const Pos = () => {
                   className="w-full font-extrabold px-3 bg-transparent outline-none text-black tracking-widest text-center"
                   style={{ fontSize: '2.2rem', height: '55px' }}
                   value={searchProduct}
-                  onChange={e => setSearchProduct(e.target.value)}
+                  onChange={e => { setSearchProduct(e.target.value); setSearchSelectedIndex(0); }}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                 />
               </div>
               <button
@@ -1317,6 +1421,10 @@ export const Pos = () => {
                 <span className="text-xs font-bold mt-0.5">(ENTER)</span>
               </button>
             </div>
+            {searchFocused && searchProduct.trim() && filteredProducts.length > 0 && createPortal(<div role="listbox" aria-label={`Resultados encontrados: ${filteredProducts.length}`} style={{ ...searchOverlayStyle, overflowY: "auto", background: "#0f172a", color: "#f8fafc", border: "1px solid #475569", borderRadius: "8px", boxShadow: "0 14px 30px rgba(0,0,0,.55)" }}>
+              <div style={{ padding: "8px 11px", position: "sticky", top: 0, background: "#1e293b", color: "#cbd5e1", fontWeight: 700, fontSize: "12px", zIndex: 1 }}>{filteredProducts.length} sugestão(ões) · use ↑ ↓ e Enter</div>
+              {filteredProducts.map((product, index) => <button type="button" role="option" aria-selected={index === searchSelectedIndex} key={product.id} onMouseEnter={() => setSearchSelectedIndex(index)} onMouseDown={event => event.preventDefault()} onClick={() => { addProductToCart(product, currentQty); setSearchFocused(false); }} style={{ display: "grid", gridTemplateColumns: "60px 1fr auto", alignItems: "center", gap: "8px", width: "100%", border: 0, borderBottom: "1px solid #334155", textAlign: "left", padding: "10px 11px", background: index === searchSelectedIndex ? "#1d4ed8" : "#0f172a", color: "#f8fafc", cursor: "pointer" }}><strong>{product.code || "—"}</strong><span>{product.name}{product.brand ? ` · ${product.brand}` : ""}</span><strong>{money(Math.round(product.price * 100))}</strong></button>)}
+            </div>, document.body)}
           </form>
 
           {/* Product Preview Info Area */}
@@ -1438,6 +1546,15 @@ export const Pos = () => {
                 <span className="text-sm uppercase font-extrabold">Múltiplo</span>
               </button>
 
+              {paymentMethod !== 'cash' && paymentMethod !== 'split' && <div className="mt-2 rounded border border-slate-600 p-2">
+                <label className="text-xs font-bold text-muted uppercase">Maquininha / Taxa</label>
+                <select className="w-full p-2 text-white rounded border border-slate-600 bg-slate-900" value={selectedMachineId === undefined ? (defaultMachineId || '') : (selectedMachineId || '')} onChange={event=>setSelectedMachineId(event.target.value ? Number(event.target.value) : null)}>
+                  {paymentMethod==='pix'&&<option value="">PIX direto em conta (sem tarifa de maquininha)</option>}
+                  {activeMachines.map(machine=><option key={machine.id} value={machine.id}>{machine.name} · {machine.ownerProfile==='chaveiro'?'Chaveiro':'Fabiano'}</option>)}
+                </select>
+                {paymentMethod === 'credit' && <label className="mt-2 block text-xs font-bold text-muted uppercase">Parcelas<select className="w-full p-2 text-white rounded border border-slate-600 bg-slate-900" value={creditInstallments} onChange={event=>setCreditInstallments(Number(event.target.value))}>{Array.from({length:12},(_,index)=>index+1).map(count=><option key={count} value={count}>{count === 1 ? 'À vista' : `${count}x`}</option>)}</select></label>}
+                {paymentRate(paymentMethod) ? <small className="block text-teal-300">{activeMachine?.name}: {paymentRate(paymentMethod)?.percent?.toFixed(2)}% · tarifa prevista {money(paymentFeeCents(paymentMethod,Math.round(totalAmount*100)))} · líquido previsto {money(Math.round(totalAmount*100)-paymentFeeCents(paymentMethod,Math.round(totalAmount*100)))}</small> : paymentMethod==='pix'&&!effectiveMachineId ? <small className="block text-teal-300">PIX direto em conta · sem tarifa de maquininha</small> : <small className="block text-amber-300">Tarifa desta modalidade precisa ser cadastrada.</small>}
+              </div>}
               {paymentMethod === 'split' && splitPayments.length > 0 && (
                 <div className="mt-4 p-3 bg-black/30 rounded border border-yellow-500/50">
                   <div className="flex justify-between items-center mb-2">
@@ -1522,7 +1639,7 @@ export const Pos = () => {
             </div>
 
             <div className="mt-2">
-              <label className="text-sm mb-1 block font-bold text-muted uppercase">Cliente/Empresa (Opcional Cupom)</label>
+              <label className="text-sm mb-1 block font-bold text-muted uppercase">Nome/Empresa impresso no cupom (opcional)</label>
               <input
                 type="text"
                 className="w-full p-2 text-white text-lg font-bold rounded border border-[var(--border)] bg-black/30 outline-none focus:border-primary"
@@ -1530,6 +1647,11 @@ export const Pos = () => {
                 value={clientCode}
                 onChange={e => setClientCode(e.target.value)}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <label className={`text-sm font-bold uppercase ${pickupNameError ? 'text-red-400' : 'text-muted'}`}>Cliente para retirada<input ref={pickupNameRef} aria-label="Cliente para retirada" aria-invalid={pickupNameError} value={pickupName} onChange={e => { setPickupName(e.target.value); if(e.target.value.trim()) setPickupNameError(false); }} className={`w-full mt-1 p-2 text-white normal-case rounded border ${pickupNameError ? 'border-red-500 ring-1 ring-red-500' : 'border-[var(--border)]'} bg-black/30`} placeholder={pickupNameError ? 'Informe o nome para retirada' : 'Nome para retirada'} /></label>
+              <label className="text-sm font-bold text-muted uppercase">Telefone (opcional)<input aria-label="Telefone para retirada" value={pickupPhone} onChange={e => setPickupPhone(e.target.value)} className="w-full mt-1 p-2 text-white normal-case rounded border border-[var(--border)] bg-black/30" placeholder="(00) 00000-0000" /></label>
             </div>
 
             <button
@@ -1571,24 +1693,6 @@ export const Pos = () => {
 
         {/* Right column: List and Totals */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
-          {activePendingSaleId && (
-            <div className="bg-yellow-500/20 border-2 border-yellow-500 rounded-lg p-3 flex items-center justify-between shadow-md animate-fade-in">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">⏳</span>
-                <div>
-                  <span className="text-xs font-bold text-yellow-400 uppercase tracking-wide block">Editando Pendência Resgatada</span>
-                  <span className="text-lg font-black text-white uppercase">{pendingClientName || clientCode || 'Cliente'}</span>
-                </div>
-              </div>
-              <button
-                onClick={savePendingSale}
-                className="bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xs px-4 py-2 rounded uppercase transition-transform active:scale-95 shadow border-none cursor-pointer flex items-center gap-1.5"
-              >
-                💾 Salvar Alterações
-              </button>
-            </div>
-          )}
-
           <div className="flex-1 rounded-lg shadow-lg border border-[var(--border)] flex flex-col min-h-0 overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
             <div className="border-b border-gray-300 text-center font-bold py-3 uppercase tracking-widest text-xl" style={{ backgroundColor: '#f3f4f6', color: '#000000' }}>
               LISTA DE PRODUTOS
@@ -1610,8 +1714,14 @@ export const Pos = () => {
                   {items.map((item, index) => (
                     <tr key={index} className="border-b border-gray-200 last:border-0 hover:bg-gray-100" style={{ fontSize: '22px', color: '#000000' }}>
                       <td className="py-4 px-3 text-center font-mono font-black text-gray-700" style={{ fontSize: '22px' }}>{index + 1}</td>
-                      <td className="py-4 px-3 font-black uppercase text-gray-900" style={{ fontSize: '22px' }}>{item.name}</td>
-                      <td className="py-4 px-3 text-center font-black text-blue-800" style={{ fontSize: '22px' }}>{item.quantity}</td>
+                      <td className="py-4 px-3 font-black uppercase text-gray-900" style={{ fontSize: '22px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span>{item.name}</span>
+                          <button type="button" title={`Alternar destino entre ${profileLabel(transactionProfile)} e ${profileLabel(transactionProfile === 'chaveiro' ? 'fabiano' : 'chaveiro')}`} aria-label={`Alternar perfil financeiro de ${item.name}`} onClick={() => updateItem(index, 'financialProfile', itemFinancialProfile(item, transactionProfile) === transactionProfile ? (transactionProfile === 'chaveiro' ? 'fabiano' : 'chaveiro') : transactionProfile)} style={{ display: 'inline-flex', alignItems: 'center', padding: '3px', borderRadius: '5px', color: '#1d4ed8', background: '#eff6ff', border: 0, cursor: 'pointer' }}><ArrowLeftRight size={15} /></button>
+                          {itemFinancialProfile(item, transactionProfile) !== transactionProfile && <span style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: 700 }}>{profileLabel(itemFinancialProfile(item, transactionProfile))}</span>}
+                        </div>
+                      </td>
+                      <td className="py-4 px-3 text-center font-black text-blue-800" style={{ fontSize: '22px' }}><input aria-label={`Quantidade de ${item.name}`} type="number" min="1" step="1" value={item.quantity} onChange={e => updateItem(index, 'quantity', Math.max(1, Math.trunc(Number(e.target.value) || 1)))} style={{ width: '64px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '5px', color: '#1e3a8a', background: '#ffffff', fontSize: '20px', fontWeight: 800 }} /></td>
                       <td className="py-4 px-3 text-right font-black text-gray-800" style={{ fontSize: '22px' }}>{Number(item.price).toFixed(2).replace('.', ',')}</td>
                       <td className="py-4 px-3 text-right font-black text-green-700" style={{ fontSize: '22px' }}>{item.total.toFixed(2).replace('.', ',')}</td>
                       <td className="py-4 px-3 text-center">
@@ -1737,6 +1847,13 @@ export const Pos = () => {
             </div>
           </div>
 
+          {hasOtherFinancialProfile && (
+            <div style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '8px', padding: '8px 12px', color: '#e2e8f0', fontSize: '0.8rem' }}>
+              <strong>Distribuição financeira interna:</strong>{' '}
+              {financialShares.map(share => `${profileLabel(share.profile)} R$ ${share.total.toFixed(2).replace('.', ',')}`).join(' · ')}
+            </div>
+          )}
+
           {/* Pending Sales List */}
           {recentPendingSales.length > 0 && (
             <div style={{ marginTop: '16px', backgroundColor: '#1e293b', borderRadius: '12px', padding: '16px', border: '2px solid #eab308', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -1744,7 +1861,7 @@ export const Pos = () => {
                 ⏳ Pendentes para Retirada ({recentPendingSales.length})
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', paddingRight: '4px' }}>
-                {recentPendingSales.slice().sort((a, b) => a.date.getTime() - b.date.getTime()).map(sale => (
+                {recentPendingSales.map(sale => (
                   <div 
                     key={sale.id}
                     style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}
@@ -1807,144 +1924,6 @@ export const Pos = () => {
         isOpen={showStandaloneModal} 
         onClose={() => setShowStandaloneModal(false)} 
       />
-
-      {/* Pending Modal */}
-      {showPendingModal && (
-        <div 
-          style={{ 
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, 
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
-          }}
-        >
-          <div 
-            style={{ 
-              backgroundColor: '#1e293b', border: '4px solid #eab308', borderRadius: '16px', padding: '32px', 
-              maxWidth: '450px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
-              display: 'flex', flexDirection: 'column', gap: '20px' 
-            }}
-          >
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', margin: 0, textAlign: 'center' }}>
-              Deixar Venda Pendente
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Nome do Cliente</label>
-                <input 
-                  type="text" autoFocus
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px', fontSize: '1.25rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
-                  value={pendingClientName} onChange={e => setPendingClientName(e.target.value)}
-                  placeholder="Nome para retirar"
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Telefone (Opcional)</label>
-                <input 
-                  type="text" 
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px', fontSize: '1.25rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
-                  value={pendingClientPhone} onChange={e => setPendingClientPhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-              <button 
-                onClick={() => setShowPendingModal(false)}
-                style={{ flex: 1, padding: '12px', backgroundColor: '#334155', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer' }}
-              >
-                Voltar
-              </button>
-              <button 
-                onClick={savePendingSale}
-                style={{ flex: 1, padding: '12px', backgroundColor: '#eab308', color: '#000000', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer' }}
-              >
-                Salvar Pendente
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal when editing a rescued Pending Sale */}
-      {showSavePendingConfirmModal && (
-        <div 
-          style={{ 
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, 
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
-          }}
-          className="animate-fade-in"
-        >
-          <div 
-            style={{ 
-              backgroundColor: '#1e293b', border: '4px solid #eab308', borderRadius: '16px', padding: '32px', 
-              maxWidth: '480px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', 
-              display: 'flex', flexDirection: 'column', gap: '20px' 
-            }}
-            className="animate-scale-in"
-          >
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', margin: 0, textAlign: 'center' }}>
-              Confirmar Alteração da Pendência
-            </h2>
-            
-            <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  Nome do Cliente
-                </label>
-                <input 
-                  type="text" 
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '10px 12px', fontSize: '1.1rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
-                  value={pendingClientName} 
-                  onChange={e => setPendingClientName(e.target.value)}
-                  placeholder="Nome do cliente"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  Telefone (Opcional)
-                </label>
-                <input 
-                  type="text" 
-                  style={{ width: '100%', boxSizing: 'border-box', backgroundColor: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '10px 12px', fontSize: '1.1rem', fontWeight: 'bold', color: 'white', outline: 'none' }}
-                  value={pendingClientPhone} 
-                  onChange={e => setPendingClientPhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 'bold' }}>
-                  {items.length} item(ns) na venda
-                </span>
-                <span style={{ color: '#4ade80', fontSize: '1.3rem', fontWeight: 900 }}>
-                  R$ {totalAmount.toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-            </div>
-
-            <p style={{ color: '#e2e8f0', fontSize: '1rem', textAlign: 'center', margin: 0, fontWeight: 'bold' }}>
-              Deseja salvar as alterações nesta pendência?
-            </p>
-
-            <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
-              <button 
-                onClick={() => setShowSavePendingConfirmModal(false)}
-                style={{ flex: 1, padding: '14px', backgroundColor: '#475569', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer', fontSize: '1rem' }}
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={savePendingSale}
-                style={{ flex: 1, padding: '14px', backgroundColor: '#22c55e', color: 'white', fontWeight: 'bold', borderRadius: '8px', textTransform: 'uppercase', border: 'none', cursor: 'pointer', fontSize: '1rem', boxShadow: '0 4px 6px -1px rgba(34, 197, 94, 0.4)' }}
-              >
-                Sim, Salvar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modals for Confirmation Flow */}
       {showConfirmModal && (
@@ -2245,12 +2224,11 @@ export const Pos = () => {
               })();
 
               const expectedGrossCash = activeSession.initialCash + sessionTotals.cash - sessionTotals.expenses;
-              const expectedNetCash = expectedGrossCash - pendingCashWages;
               
               const closeCash = parseCurrency(closeRegisterCash);
               const leftInDrawer = parseCurrency(closeLeftInDrawer);
               const diff = closeCash - expectedGrossCash;
-              const withdrawal = (closeCash - pendingCashWages) - leftInDrawer;
+              const withdrawal = (closeCash - pendingCashWages) - leftInDrawer - closeCashReserves;
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2483,6 +2461,42 @@ export const Pos = () => {
                       </div>
                     </div>
                   )}
+
+                  {closeReserveLines.length > 0 && (
+                    <div style={{ backgroundColor: 'rgba(12, 74, 80, 0.28)', border: '1px solid #0f766e', borderRadius: '8px', padding: '12px', display: 'grid', gap: '10px' }}>
+                      <strong style={{ color: '#ccfbf1' }}>Reservas opcionais da Gerência</strong>
+                      <small style={{ color: '#cbd5e1' }}>Selecione apenas o que foi separado de fato. Fechar sem selecionar não registra reservas.</small>
+                      {closeReserveLines.map(line => {
+                        const choice = closeReservations[line.key];
+                        return <div key={line.key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', color: '#fff' }}>
+                          <label style={{ flex: 1, minWidth: '180px', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={!!choice?.selected} onChange={event => setCloseReservations(previous => ({ ...previous, [line.key]: { selected: event.target.checked, amount: previous[line.key]?.amount || (line.suggested / 100).toFixed(2).replace('.', ','), source: previous[line.key]?.source || 'cash' } }))} />{' '}
+                            {line.name}
+                            <small style={{ display: 'block', color: '#99f6e4' }}>Por dia: {money(line.daily)} · Pendente: {money(line.pending)} · Sugerido: {money(line.suggested)}</small>
+                          </label>
+                          {choice?.selected && <>
+                            <label>Valor <input aria-label={`Valor da reserva de ${line.name}`} value={choice.amount} onChange={event => setCloseReservations(previous => ({ ...previous, [line.key]: { ...previous[line.key], amount: event.target.value } }))} style={{ width: '90px', color: '#fff', background: '#0f172a', border: '1px solid #14b8a6', padding: '5px' }} /></label>
+                            <select aria-label={`Origem da reserva de ${line.name}`} value={choice.source} onChange={event => setCloseReservations(previous => ({ ...previous, [line.key]: { ...previous[line.key], source: event.target.value as MoneySource } }))} style={{ color: '#fff', background: '#0f172a', border: '1px solid #14b8a6', padding: '5px' }}>
+                              <option value="cash">Dinheiro</option><option value="pix">PIX</option><option value="bank">Banco</option><option value="other">Outro</option>
+                            </select>
+                          </>}
+                        </div>;
+                      })}
+                      <strong style={{ color: '#99f6e4' }}>Selecionado em dinheiro: {money(Math.round(closeCashReserves * 100))}</strong>
+                    </div>
+                  )}
+
+                  {restockSuggestedCents > 0 && <div style={{ backgroundColor:'rgba(30,64,175,.2)',border:'1px solid #3b82f6',borderRadius:'8px',padding:'12px',display:'grid',gap:'8px',color:'#fff' }}>
+                    <label style={{fontWeight:800,color:'#bfdbfe'}}><input type="checkbox" checked={restockSelected} onChange={event=>{setRestockSelected(event.target.checked);if(event.target.checked&&!restockAmount)setRestockAmount((restockSuggestedCents/100).toFixed(2).replace('.',','));}}/> Reserva opcional para reposição</label>
+                    <small>Vendas do turno de produtos selecionados, pelo custo padrão salvo no momento da venda: {money(restockSuggestedCents)}. Não altera o lucro operacional.</small>
+                    {restockSelected&&<div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                      <label>Valor <input aria-label="Valor da reserva de reposição" value={restockAmount} onChange={e=>setRestockAmount(e.target.value)} style={{width:'95px',color:'#fff',background:'#0f172a',padding:'5px'}}/></label>
+                      <label>Fundo de destino <select value={restockFundId||''} onChange={e=>setRestockFundId(e.target.value?Number(e.target.value):null)} style={{color:'#fff',background:'#0f172a',padding:'5px'}}><option value="">Selecione fundo</option>{activeRestockFunds.map(fund=><option key={fund.id} value={fund.id}>{fund.name}</option>)}</select></label>
+                      {!creatingRestockFund ? <button type="button" onClick={()=>setCreatingRestockFund(true)} style={{color:'#bfdbfe',background:'transparent',border:'1px solid #3b82f6',borderRadius:6,padding:'5px 8px'}}>Cadastrar fundo</button> : <div style={{display:'flex',gap:6,alignItems:'center'}}><input aria-label="Nome do novo fundo de reposição" placeholder="Nome do fundo" value={restockFundName} onChange={event=>setRestockFundName(event.target.value)} style={{width:150,color:'#fff',background:'#0f172a',padding:'5px'}}/><button type="button" onClick={async()=>{if(!activeSession||!restockFundName.trim())return alert('Informe o nome do fundo.');try{const id=await saveFund({name:restockFundName.trim(),profile:activeSession.profile,status:'active'});setRestockFundId(id);setRestockFundName('');setCreatingRestockFund(false);}catch(error){alert(error instanceof Error?error.message:'Não foi possível cadastrar o fundo.');}}} style={{color:'#fff',background:'#2563eb',border:0,borderRadius:6,padding:'5px 8px'}}>Criar e selecionar</button></div>}
+                      <label>Origem <select value={restockSource} onChange={e=>setRestockSource(e.target.value as MoneySource)} style={{color:'#fff',background:'#0f172a',padding:'5px'}}><option value="cash">Dinheiro</option><option value="pix">PIX</option><option value="bank">Banco</option><option value="other">Outro</option></select></label>
+                      {!activeRestockFunds.length&&<small>Cadastre um fundo ativo deste perfil em Gerência → Financeiro → Fundos livres.</small>}
+                    </div>}
+                  </div>}
 
                   {/* 3. Inputs */}
                   <div style={{ display: 'flex', gap: '12px' }}>
@@ -2816,7 +2830,7 @@ export const Pos = () => {
                 <select
                   className="p-3 bg-black/50 text-white rounded border border-gray-600 outline-none flex-1 font-bold uppercase text-sm"
                   value={currentSplitMethod}
-                  onChange={e => setCurrentSplitMethod(e.target.value as PaymentMethod)}
+                  onChange={e => { setCurrentSplitMethod(e.target.value as PaymentMethod); setCurrentSplitInstallments(1); }}
                 >
                   <option value="cash">Dinheiro</option>
                   <option value="pix">PIX</option>
@@ -2837,13 +2851,24 @@ export const Pos = () => {
                   }}
                 />
               </div>
+              {currentSplitMethod !== 'cash' && <label style={{ color:'#cbd5e1', fontSize:'0.8rem', fontWeight:700 }}>Maquininha desta parcela
+                <select className="w-full p-2 text-white rounded border border-slate-600 bg-slate-900" value={currentSplitMachineId===undefined?(defaultMachineId||''):currentSplitMachineId||''} onChange={e=>setCurrentSplitMachineId(e.target.value?Number(e.target.value):null)}>
+                  {currentSplitMethod==='pix'&&<option value="">PIX direto em conta</option>}{activeMachines.map(machine=><option key={machine.id} value={machine.id}>{machine.name}</option>)}
+                </select>
+                {currentSplitMethod === 'credit' && <><span className="block mt-2">Parcelas</span><select className="w-full p-2 text-white rounded border border-slate-600 bg-slate-900" value={currentSplitInstallments} onChange={event=>setCurrentSplitInstallments(Number(event.target.value))}>{Array.from({length:12},(_,index)=>index+1).map(count=><option key={count} value={count}>{count === 1 ? 'À vista' : `${count}x`}</option>)}</select></>}
+                {(()=>{const mid=currentSplitMachineId===undefined?defaultMachineId:currentSplitMachineId;const rate=paymentRate(currentSplitMethod,mid,currentSplitInstallments);const cents=Math.round(parseCurrency(currentSplitAmount)*100);return rate?<small className="block text-teal-300">Taxa estimada {money(feeCents(cents,rate))} · líquido {money(cents-feeCents(cents,rate))}</small>:currentSplitMethod==='pix'&&!mid?<small className="block text-teal-300">PIX direto em conta · sem tarifa de maquininha</small>:<small className="block text-amber-300">Configure esta modalidade.</small>;})()}
+              </label>}
               <button
                 className="btn w-full py-3 uppercase font-bold text-sm"
                 style={{ backgroundColor: '#3b82f6', color: 'white', border: 'none' }}
                 onClick={() => {
                   const amt = parseCurrency(currentSplitAmount);
                   if (amt > 0) {
-                    setSplitPayments([...splitPayments, { method: currentSplitMethod, amount: amt }]);
+                    const machineId=currentSplitMachineId===undefined?defaultMachineId:currentSplitMachineId;
+                    const rate=paymentRate(currentSplitMethod,machineId,currentSplitInstallments);
+                    if(currentSplitMethod!=='cash'&&!(currentSplitMethod==='pix'&&!machineId)&&!rate){alert('Configure a tarifa desta modalidade ou escolha outra maquininha.');return;}
+                    const grossCents=Math.round(amt*100);const fee=rate?feeCents(grossCents,rate):0;
+                    setSplitPayments([...splitPayments, { method: currentSplitMethod, amount: amt, installments:currentSplitMethod==='credit'?currentSplitInstallments:undefined, machineId: machineId||undefined, machineFee: fee/100, netAmount:(grossCents-fee)/100 }]);
                     setCurrentSplitAmount('');
                   }
                 }}

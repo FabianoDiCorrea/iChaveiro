@@ -2,6 +2,7 @@ import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import type { Profile } from '../db/db';
+import { financialTransaction } from '../db/financialAllocation';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TrendingUp, TrendingDown, DollarSign, Package } from 'lucide-react';
@@ -15,12 +16,9 @@ export const Dashboard = () => {
 
   // Get today's transactions for the active profile
   const todayTransactions = useLiveQuery(
-    () => {
-      let query = db.transactions.where('date').between(start, end);
-      if (viewProfile !== 'todos') {
-        return query.filter(t => t.profile === viewProfile).toArray();
-      }
-      return query.toArray();
+    async () => {
+      const rows = await db.transactions.where('date').between(start, end).toArray();
+      return rows.map(t => financialTransaction(t, viewProfile)).filter((t): t is NonNullable<typeof t> => t !== null);
     },
     [viewProfile]
   );
@@ -29,9 +27,12 @@ export const Dashboard = () => {
 
   const sales = todayTransactions.filter(t => t.type === 'sale');
   const returns = todayTransactions.filter(t => t.type === 'return');
+  const expenses = todayTransactions.filter(t => t.type === 'expense');
 
   const totalSales = sales.reduce((sum, t) => sum + t.total, 0);
   const totalReturns = returns.reduce((sum, t) => sum + t.total, 0);
+  const totalExpenses = expenses.reduce((sum, t) => sum + t.total, 0);
+  const totalMachineFees = sales.reduce((sum, t) => sum + (t.machineFee || 0), 0);
   const netTotal = totalSales - totalReturns;
 
   let totalCosts = 0;
@@ -45,7 +46,10 @@ export const Dashboard = () => {
     });
   });
 
-  const realProfit = netTotal - totalCosts - totalDiscounts;
+  totalCosts -= returns.filter(t => t.returnOfTransactionId).reduce((sum, t) => sum + t.items.reduce((value, item) => value + (item.cost || 0) * item.quantity, 0), 0);
+
+  const totalGrossSales = totalSales + totalDiscounts;
+  const realProfit = netTotal - totalCosts - totalExpenses - totalMachineFees;
 
   const topService = Object.entries(serviceCounts).sort((a, b) => b[1] - a[1])[0];
 
@@ -84,15 +88,15 @@ export const Dashboard = () => {
             <span className="font-medium">Vendas Brutas</span>
             <TrendingUp size={20} className="text-primary" />
           </div>
-          <span className="text-3xl font-bold">R$ {totalSales.toFixed(2)}</span>
+          <span className="text-3xl font-bold">R$ {totalGrossSales.toFixed(2)}</span>
         </div>
 
         <div className="glass-panel p-6 flex flex-col gap-2">
           <div className="flex justify-between items-center text-muted">
-            <span className="font-medium">Devoluções / Custos</span>
+            <span className="font-medium">Deduções e custos</span>
             <TrendingDown size={20} className="text-danger" />
           </div>
-          <span className="text-3xl font-bold">R$ {(totalReturns + totalCosts + totalDiscounts).toFixed(2)}</span>
+          <span className="text-3xl font-bold">R$ {(totalReturns + totalCosts + totalDiscounts + totalExpenses + totalMachineFees).toFixed(2)}</span>
         </div>
 
         <div className="glass-panel p-6 flex flex-col gap-2 bg-success/10 border border-success/30">

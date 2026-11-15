@@ -46,6 +46,9 @@ export const SessionHistory = () => {
   }, [filterProfile, filterPeriod]);
 
   const generateReportHtml = async (session: any) => {
+    const closeReservations = (await db.managementEntries.where('cashSessionId').equals(session.id).toArray())
+      .filter(entry => entry.source === 'cash' && (entry.kind === 'reserve' || entry.kind === 'fund-deposit'));
+    const cashReserves = closeReservations.reduce((sum, entry) => sum + entry.amountCents, 0) / 100;
     // Obter as despesas e salários durante esta sessão para reconstruir o fechamento
     const sessionTxs = await db.transactions
       .where('date')
@@ -99,7 +102,7 @@ export const SessionHistory = () => {
     const closeCash = (session.actualCash || 0);
     
     const availableCashAfterWages = closeCash - pendingCashWages;
-    const withdrawal = availableCashAfterWages - (session.leftInDrawer || 0);
+    const withdrawal = availableCashAfterWages - (session.leftInDrawer || 0) - cashReserves;
     const difference = closeCash - expectedGrossCash;
 
     const totalSales = (session.cashSales || 0) + (session.pixSales || 0) + (session.debitSales || 0) + (session.creditSales || 0);
@@ -179,6 +182,7 @@ export const SessionHistory = () => {
         <div class="bold text-center" style="margin-bottom: 5px;">DESTINO DO DINHEIRO</div>
         <table>
           ${pendingCashWages > 0 ? `<tr><td>Diárias pagas em dinheiro:</td><td class="text-right">R$ ${pendingCashWages.toFixed(2).replace('.', ',')}</td></tr>` : ''}
+          ${cashReserves > 0 ? `<tr><td>Reservas separadas em dinheiro:</td><td class="text-right">R$ ${cashReserves.toFixed(2).replace('.', ',')}</td></tr>` : ''}
           <tr><td>Fundo para o próximo dia:</td><td class="text-right">R$ ${(session.leftInDrawer || 0).toFixed(2).replace('.', ',')}</td></tr>
           <tr><td class="bold">Sangria / Retirada:</td><td class="text-right bold">R$ ${withdrawal.toFixed(2).replace('.', ',')}</td></tr>
         </table>

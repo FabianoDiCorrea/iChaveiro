@@ -1,7 +1,7 @@
 {
   "name": "ichaveiro",
   "private": true,
-  "version": "0.0.90",
+  "version": "20.27.1",
   "author": "DevDuo",
   "description": "Sistema de Gestão para Chaveiro",
   "type": "module",

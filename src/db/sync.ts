@@ -1,7 +1,9 @@
 import { db } from './db';
 import { exportDB } from 'dexie-export-import';
+import { isTestMode } from './testMode';
 
 export const runAutoBackup = async () => {
+  if (isTestMode()) return false;
   const token = localStorage.getItem('github_token') || '';
   const repo = localStorage.getItem('github_repo') || '';
   

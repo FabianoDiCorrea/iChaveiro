@@ -11,6 +11,7 @@ import { SalesHistory } from './pages/SalesHistory';
 import { SessionHistory } from './pages/SessionHistory';
 import { Backup } from './pages/Backup';
 import { Employees } from './pages/Employees';
+import { Management } from './pages/Management';
 
 const AppRoutes = () => {
   return (
@@ -26,6 +27,7 @@ const AppRoutes = () => {
         <Route path="devolucoes" element={<Returns />} />
         <Route path="funcionarios" element={<Employees />} />
         <Route path="nuvem" element={<Backup />} />
+        <Route path="gerencia" element={<Management />} />
       </Route>
     </Routes>
   );

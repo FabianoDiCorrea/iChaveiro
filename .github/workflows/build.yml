@@ -3,7 +3,7 @@ name: Build iChaveiro Installer
 on:
   push:
     tags:
-      - 'v*' # Trigger on version tags
+      - 'v*'
 
 jobs:
   build:
@@ -22,17 +22,29 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Electron App
-        run: npm run electron:build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run electron:build -- --publish never
 
-      - name: Upload Release Asset
+      - name: Publish Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*
+          name: iChaveiro 20.27.001 — Edição 2027
+          body: |
+            ### Novidades da Edição 2027
+
+            - PDV refinado com identificação de cliente, edição de pendências e pesquisa de itens.
+            - Cadastro de maquininhas, tarifas por modalidade e parcela, além de relatórios de taxas.
+            - Gerência com contas, recorrências, despesas, fundos, reservas, metas, cenários e calendário.
+            - Custos de aquisição e reposição, agrupamentos comerciais e filtros detalhados de Movimento.
+            - Cupom com identificação priorizada e Instagram após a mensagem de agradecimento.
+
+            A atualização mantém o identificador do aplicativo e o diretório de dados local. As migrações são aditivas; não é necessário desinstalar a versão anterior nem restaurar um backup como etapa normal da atualização.
+          files: |
+            release/iChaveiro-Setup-v20.27.1.exe
+            release/iChaveiro-Setup-v20.27.1.exe.blockmap
+            release/latest.yml
           draft: false
           prerelease: false
         env:

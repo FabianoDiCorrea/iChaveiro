@@ -1,0 +1,124 @@
+.mg-root { height: 100%; min-height: 0; display: flex; flex-direction: column; color: #f8fafc; }
+.mg-header { display: flex; gap: 20px; align-items: end; justify-content: space-between; padding: 8px 0 18px; }
+.mg-header h1 { margin: 0; font-size: 2rem; font-weight: 800; }
+.mg-header p, .mg-heading p, .mg-hint { margin: 4px 0 0; color: #cbd5e1; font-size: .85rem; }
+.mg-filters { display: flex; flex-wrap: wrap; gap: 10px; }
+.mg-filters label, .mg-heading label { display: flex; align-items: center; gap: 7px; color: #cbd5e1; font-size: .8rem; }
+.mg-root input, .mg-root select, .mg-root textarea, .mg-form input, .mg-form select, .mg-form textarea { background: #0f172a; border: 1px solid #64748b; border-radius: 7px; color: #fff; padding: 8px 10px; min-width: 0; }
+.mg-root input:focus, .mg-root select:focus, .mg-root textarea:focus, .mg-form input:focus, .mg-form select:focus, .mg-form textarea:focus { outline: 2px solid #60a5fa; outline-offset: 1px; }
+.mg-tabs, .mg-subtabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #475569; padding: 2px 0 8px; }
+.mg-tabs button, .mg-subtabs button { display: flex; align-items: center; gap: 6px; color: #cbd5e1; padding: 8px 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; cursor: pointer; font-weight: 700; font-size: .82rem; }
+.mg-tabs button:hover, .mg-subtabs button:hover, .mg-tabs button.active, .mg-subtabs button.active { background: #1e3a5f; border-color: #3b82f6; color: #fff; }
+.mg-content { min-height: 0; overflow-y: auto; padding: 18px 2px 28px; }
+.mg-section { display: flex; flex-direction: column; gap: 16px; }
+.mg-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.mg-heading h2, .mg-heading h3, .mg-card h3 { margin: 0; font-weight: 800; }
+.mg-heading h2 { font-size: 1.3rem; }
+.mg-heading h3, .mg-card h3 { font-size: 1rem; }
+.mg-card { background: #1e293b; border: 1px solid #475569; border-radius: 12px; padding: 16px; color: #f8fafc; min-width: 0; }
+.mg-card small, .mg-list small { display: block; color: #cbd5e1; font-size: .78rem; margin-top: 4px; }
+.mg-card small svg { display: inline-block; vertical-align: -2px; color: #93c5fd; cursor: help; }
+.mg-card p { color: #e2e8f0; }
+.mg-card summary { cursor: pointer; font-weight: 700; }
+.mg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.mg-grid-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mg-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mg-stat { display: flex; flex-direction: column; gap: 7px; }
+.mg-value { display: block; font-size: 1.55rem; line-height: 1.2; color: #fff; margin: 8px 0; font-weight: 850; }
+.mg-positive .mg-value, .mg-success { color: #86efac; }
+.mg-negative .mg-value, .mg-warning { color: #fca5a5; }
+.mg-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.mg-actions button, .mg-pagination button { background: #334155; border: 1px solid #64748b; border-radius: 6px; color: #fff; padding: 6px 9px; cursor: pointer; font-size: .8rem; font-weight: 700; }
+.mg-actions button:hover, .mg-pagination button:hover { background: #475569; }
+.mg-actions button:disabled, .mg-pagination button:disabled { opacity: .5; cursor: default; }
+.mg-actions .btn { padding: 8px 12px; }
+.mg-link { border: 0; background: transparent; color: #93c5fd; cursor: pointer; font-weight: 750; padding: 3px; }
+.mg-link:hover { text-decoration: underline; color: #bfdbfe; }
+.mg-table-wrap { overflow-x: auto; padding: 0; }
+.mg-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.mg-table th { text-align: left; background: #0f172a; color: #e2e8f0; position: sticky; top: 0; white-space: nowrap; }
+.mg-table td, .mg-table th { padding: 10px 12px; border-bottom: 1px solid #334155; vertical-align: top; }
+.mg-table td { color: #f8fafc; }
+.mg-table tr:hover td { background: #26364e; }
+.mg-table td small { max-width: 240px; }
+.mg-progress { height: 7px; border-radius: 6px; background: #334155; margin: 7px 0; overflow: hidden; }
+.mg-progress span { display: block; height: 100%; background: #34d399; }
+.mg-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 4px; color: #f8fafc; }
+.mg-form label { display: flex; flex-direction: column; gap: 5px; font-size: .84rem; font-weight: 700; color: #e2e8f0; }
+.mg-form label.mg-check, .mg-weekdays label.mg-check { flex-direction: row; align-items: center; font-weight: 500; }
+.mg-form .mg-full { grid-column: 1 / -1; }
+.mg-form textarea { min-height: 70px; }
+.mg-weekdays { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.mg-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 350px; overflow-y: auto; }
+.mg-list-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px; border: 1px solid #475569; border-radius: 7px; }
+.mg-notice-danger { border-color: #ef4444; }
+.mg-notice-warning { border-color: #f59e0b; }
+.mg-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.mg-balance { display: flex; justify-content: space-between; border-bottom: 1px solid #475569; padding: 7px 0; }
+.mg-bars { height: 140px; display: flex; gap: 10px; align-items: flex-end; justify-content: space-around; }
+.mg-bars > div { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1; }
+.mg-bar { width: 70%; min-height: 4px; background: #60a5fa; border-radius: 5px 5px 0 0; }
+.mg-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.mg-calendar-weekday { text-align: center; color: #cbd5e1; padding: 8px; }
+.mg-calendar-empty { min-height: 85px; }
+.mg-calendar-day { min-height: 85px; min-width: 0; background: #0f172a; border: 1px solid #475569; border-radius: 6px; color: #fff; text-align: left; padding: 7px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.mg-calendar-day:hover, .mg-calendar-day.today { border-color: #60a5fa; background: #172a46; }
+.mg-calendar-day small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 3px; padding: 2px; font-size: .7rem; }
+.mg-calendar-day .future { background: #1e40af; }.mg-calendar-day .late { background: #b45309; }.mg-calendar-day .paid { background: #166534; }.mg-calendar-day .event { background: #713f12; }
+.mg-legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: .8rem; }
+.mg-heatmap { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 12px; text-align: center; font-size: .75rem; }
+.mg-heatmap-row { display: contents; }.mg-heatmap-row > * { padding: 10px 2px; border-radius: 4px; }
+.mg-movement-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.mg-movement-controls label { display: flex; flex-direction: column; gap: 4px; color: #cbd5e1; font-size: .78rem; font-weight: 700; }
+.mg-movement-filter-card { padding: 12px; }
+.mg-movement-filter-grid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, 1.25fr) minmax(0, 1.4fr) minmax(0, .9fr) minmax(0, 1fr) auto; align-items: end; gap: 9px; }
+.mg-movement-filter-grid label { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: #cbd5e1; font-size: .76rem; font-weight: 700; }
+.mg-movement-filter-grid input, .mg-movement-filter-grid select { width: 100%; }
+.mg-movement-search { grid-column: span 1; }
+.mg-clear-filters { min-height: 36px; border: 1px solid #64748b; border-radius: 7px; background: #334155; color: #f8fafc; padding: 7px 10px; font-weight: 700; cursor: pointer; }
+.mg-clear-filters:hover { background: #475569; }
+.mg-active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; color: #e2e8f0; font-size: .78rem; }
+.mg-active-filters span { border: 1px solid #3b82f6; border-radius: 999px; background: #1e3a5f; color: #eff6ff; padding: 3px 9px; }
+.mg-movement-summary .mg-card { display: flex; flex-direction: column; justify-content: center; min-height: 92px; }
+.mg-movement-summary .mg-card > strong { margin-top: 8px; font-size: 1.15rem; line-height: 1.25; overflow-wrap: anywhere; }
+.mg-movement-summary .mg-card small { margin-top: 0; }
+.mg-movement-comparison { padding: 12px; }
+.mg-movement-detail-scroll { max-height: min(56vh, 560px); overflow: auto; }
+.mg-movement-grid { display: grid; gap: 4px; overflow-x: auto; margin-top: 12px; text-align: center; font-size: .74rem; }
+.mg-movement-row { display: contents; }
+.mg-movement-row > strong { padding: 8px 3px; text-align: left; }
+.mg-movement-row > button { min-height: 38px; border: 1px solid #64748b; border-radius: 5px; color: #17212b; font-weight: 800; cursor: pointer; padding: 4px; }
+.mg-movement-row > button:hover { outline: 2px solid #fff; outline-offset: 1px; }
+.mg-movement-calendar { max-width: 1100px; }
+.mg-movement-calendar .mg-calendar-day { justify-content: flex-start; color: #17212b; font-weight: 800; }
+.mg-movement-calendar .mg-calendar-day span { font-size: .78rem; overflow-wrap: anywhere; }
+.mg-movement-calendar .mg-calendar-day small { color: #334155; white-space: normal; }
+.mg-movement-calendar .movement-future { color: #cbd5e1; cursor: default; }
+.mg-legend i { width: 18px; height: 14px; border-radius: 3px; display: inline-block; }
+.mg-period-bands { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.mg-period-band { text-align: left; display: flex; flex-direction: column; gap: 8px; color: #17212b; cursor: pointer; }
+.mg-period-band strong { font-size: 1rem; }
+.mg-period-band span { font-size: 1.3rem; font-weight: 850; }
+.mg-period-band small { color: #334155; }
+.mg-group-list { display: flex; flex-direction: column; gap: 10px; }
+.mg-commercial-group-head { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: transparent; color: #f8fafc; cursor: pointer; padding: 0; }
+.mg-commercial-group-head > span:last-child { text-align: right; }
+.mg-wage-card { text-align: left; cursor: pointer; color: #f8fafc; }
+.mg-chart-value { color: #f8fafc; font-size: .75rem; white-space: nowrap; }
+.mg-commercial-group-head strong { display: block; }
+.mg-group-bar { height: 8px; background: #0f172a; border-radius: 999px; margin: 10px 0; overflow: hidden; }
+.mg-group-bar i { display: block; height: 100%; background: #65bd8c; }
+.mg-scenario-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin-top: 10px; }
+.mg-scenario-options button { display: flex; flex-direction: column; gap: 6px; text-align: left; min-height: 86px; padding: 10px; border-radius: 8px; border: 1px solid #64748b; background: #0f172a; color: #f8fafc; cursor: pointer; }
+.mg-scenario-options button.active { border-color: #60a5fa; background: #1e3a5f; }
+.mg-scenario-options small { color: #cbd5e1; }
+.mg-form details { grid-column: 1 / -1; color: #e2e8f0; }
+.mg-form details .mg-form { margin-top: 8px; }
+.mg-menu-badge { margin-left: auto; border-radius: 999px; background: #b91c1c; color: white; min-width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: .7rem; }
+@media (max-width: 1120px) { .mg-header { align-items: start; flex-direction: column; }.mg-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }.mg-tabs { flex-wrap: nowrap; overflow-x: auto; } }
+@media (max-width: 1400px) { .mg-movement-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.mg-clear-filters { justify-self: start; } }
+@media (max-width: 700px) { .mg-grid-two, .mg-grid-four, .mg-form { grid-template-columns: 1fr; }.mg-calendar-day { min-height: 60px; }.mg-calendar-day small { font-size: .6rem; }.mg-form .mg-full { grid-column: 1; } }
+@media (max-width: 700px) { .mg-movement-filter-grid { grid-template-columns: 1fr; }.mg-movement-detail-scroll { max-height: 52vh; }.mg-movement-comparison .mg-table { min-width: 650px; } }
+@media (max-width: 700px) { .mg-period-bands { grid-template-columns: 1fr; }.mg-movement-calendar .mg-calendar-day { min-height: 64px; padding: 3px; }.mg-movement-calendar .mg-calendar-day span { font-size: .62rem; } }
+@media (max-width: 900px) { .mg-scenario-options { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 520px) { .mg-scenario-options { grid-template-columns: 1fr; } }

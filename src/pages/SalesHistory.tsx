@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Transaction, type Profile, type PaymentMethod, type TransactionItem } from '../db/db';
+import { db, PROFILES, type Transaction, type Profile, type PaymentMethod, type TransactionItem } from '../db/db';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
 import { Calendar, Printer, Undo2, Trash2, Search, Filter, Edit2, X, Plus, Receipt } from 'lucide-react';
+import { financialTransaction } from '../db/financialAllocation';
+import { deleteTransactionSafely, linkedReturnsFor, remainingQuantities, prepareReturn, returnSaleItems } from '../db/saleReturns';
+import { ReportModal } from '../components/ReportModal';
 
 export const SalesHistory = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
@@ -13,6 +16,11 @@ export const SalesHistory = () => {
   
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [returningSale, setReturningSale] = useState<Transaction | null>(null);
+  const [priorReturns, setPriorReturns] = useState<Transaction[]>([]);
+  const [returnQuantities, setReturnQuantities] = useState<number[]>([]);
+  const [returnPaymentMethod, setReturnPaymentMethod] = useState<PaymentMethod>('cash');
+  const [returnCashProfile, setReturnCashProfile] = useState<Profile>('chaveiro');
 
   const getDates = () => {
     const now = new Date();
@@ -40,9 +48,7 @@ export const SalesHistory = () => {
         .reverse()
         .toArray();
       
-      if (viewProfile !== 'todos') {
-        query = query.filter(t => t.profile === viewProfile);
-      }
+      query = query.map(t => financialTransaction(t, viewProfile)).filter((t): t is NonNullable<typeof t> => t !== null);
 
       if (searchTerm) {
         const lowerSearch = searchTerm.toLowerCase();
@@ -62,43 +68,40 @@ export const SalesHistory = () => {
     if (!id) return;
     if (window.confirm('Tem certeza que deseja EXCLUIR permanentemente esta transação? Isso afetará os relatórios e o caixa não fechará corretamente se já tiver sido contabilizado. (O estoque será restaurado)')) {
       try {
-        await db.transaction('rw', db.transactions, db.products, async () => {
-          const t = await db.transactions.get(id);
-          if (t && t.type === 'sale') {
-            for (const item of t.items) {
-              if (item.productId) {
-                const product = await db.products.get(item.productId);
-                if (product && product.hasStock) {
-                  await db.products.update(product.id!, { stock: product.stock + item.quantity });
-                }
-              }
-            }
-          }
-          await db.transactions.delete(id);
-        });
+        await deleteTransactionSafely(id);
         alert('Transação excluída e estoque restaurado (se aplicável).');
       } catch (err) {
         console.error(err);
-        alert('Erro ao excluir transação.');
+        alert(err instanceof Error ? err.message : 'Erro ao excluir transação.');
       }
     }
   };
 
-  const handleReturn = (t: Transaction) => {
-    // Navigate to returns or just tell them to use Returns page
-    // Actually, we can prefill the Returns via a simple confirm, but we don't have routing state passing set up cleanly.
-    // Let's do a simple quick return here if they want, or alert them.
-    if (window.confirm(`Deseja registrar uma devolução automática no valor de R$ ${t.total.toFixed(2).replace('.', ',')} para a transação do dia ${format(t.date, 'dd/MM/yyyy')}?`)) {
-      db.transactions.add({
-        profile: t.profile,
-        type: 'return',
-        items: [{ service: 'other', name: `Devolução Ref. Venda ${t.id}`, quantity: 1, price: t.total, cost: 0, total: t.total }],
-        total: t.total,
-        paymentMethod: 'cash',
-        date: new Date()
-      }).then(() => alert('Devolução registrada com sucesso no caixa de hoje!'));
+  const handleReturn = async (sale: Transaction) => {
+    if (!sale.id) return;
+    const returns = await linkedReturnsFor(sale.id);
+    const remaining = remainingQuantities(sale, returns);
+    if (remaining.every(quantity => quantity <= 0)) return alert('Esta venda já foi devolvida integralmente.');
+    setPriorReturns(returns);
+    setReturnQuantities(remaining);
+    setReturnPaymentMethod('cash');
+    setReturnCashProfile(sale.profile);
+    setReturningSale(sale);
+  };
+
+  const submitReturn = async () => {
+    if (!returningSale?.id) return;
+    try {
+      await returnSaleItems(returningSale.id, returnQuantities, returnPaymentMethod, returnCashProfile);
+      setReturningSale(null);
+      alert('Devolução registrada e estoque reposto conforme os itens selecionados.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Erro ao registrar devolução.');
     }
   };
+
+  const returnable = returningSale ? remainingQuantities(returningSale, priorReturns) : [];
+  const refundPreview = returningSale ? (() => { try { return prepareReturn(returningSale, priorReturns, returnQuantities).total; } catch { return 0; } })() : 0;
 
   const printReceipt = (t: Transaction) => {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
@@ -224,13 +227,17 @@ export const SalesHistory = () => {
       // Recalculate totals
       const subtotal = editingTx.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
       const total = subtotal - (editingTx.discount || 0);
+      if (total < 0) throw new Error('O desconto não pode superar o valor dos itens.');
+      if (editingTx.paymentMethod === 'split' && Math.round((editingTx.splitPayments || []).reduce((sum, payment) => sum + payment.amount, 0) * 100) !== Math.round(total * 100)) {
+        throw new Error('O total dos pagamentos mistos deve corresponder ao total da venda.');
+      }
       
       const updatedItems = editingTx.items.map(i => ({
         ...i,
         total: i.price * i.quantity
       }));
 
-      let calculatedFee = 0;
+      let calculatedFee = editingTx.paymentMethod === 'split' ? (editingTx.machineFee || 0) : 0;
       if (editingTx.profile === 'chaveiro') {
         if (editingTx.paymentMethod === 'debit') calculatedFee = total * 0.0199;
         else if (editingTx.paymentMethod === 'credit') calculatedFee = total * 0.0498;
@@ -240,20 +247,40 @@ export const SalesHistory = () => {
         else if (editingTx.paymentMethod === 'credit') calculatedFee = total * 0.0486;
       }
 
-      await db.transactions.update(editingTx.id, {
-        profile: editingTx.profile,
-        paymentMethod: editingTx.paymentMethod,
-        clientName: editingTx.clientName ? editingTx.clientName.trim() : undefined,
-        discount: editingTx.discount || 0,
-        machineFee: calculatedFee > 0 ? calculatedFee : undefined,
-        items: updatedItems,
-        total: total
+      await db.transaction('rw', db.transactions, db.products, async () => {
+        const original = await db.transactions.get(editingTx.id!);
+        if (!original) throw new Error('Transação original não encontrada.');
+        if (original.type === 'sale' && (await linkedReturnsFor(original.id!)).length) {
+          const financialChange = total !== original.total || editingTx.profile !== original.profile || editingTx.paymentMethod !== original.paymentMethod || JSON.stringify(updatedItems) !== JSON.stringify(original.items);
+          if (financialChange) throw new Error('Venda com devolução vinculada: edite apenas o nome do cliente.');
+        }
+        if (original.type === 'sale') {
+          const oldQty = new Map<number, number>();
+          const newQty = new Map<number, number>();
+          for (const item of original.items) if (item.productId) oldQty.set(item.productId, (oldQty.get(item.productId) || 0) + item.quantity);
+          for (const item of updatedItems) if (item.productId) newQty.set(item.productId, (newQty.get(item.productId) || 0) + item.quantity);
+          for (const productId of new Set([...oldQty.keys(), ...newQty.keys()])) {
+            const difference = (newQty.get(productId) || 0) - (oldQty.get(productId) || 0);
+            if (!difference) continue;
+            const product = await db.products.get(productId);
+            if (product?.hasStock) await db.products.update(productId, { stock: product.stock - difference });
+          }
+        }
+        await db.transactions.update(editingTx.id!, {
+          profile: editingTx.profile,
+          paymentMethod: editingTx.paymentMethod,
+          clientName: editingTx.clientName ? editingTx.clientName.trim() : undefined,
+          discount: editingTx.discount || 0,
+          machineFee: calculatedFee > 0 ? calculatedFee : undefined,
+          items: updatedItems,
+          total
+        });
       });
       alert('Transação atualizada com sucesso!');
       setEditingTx(null);
     } catch (e) {
       console.error(e);
-      alert('Erro ao atualizar transação.');
+      alert(e instanceof Error ? e.message : 'Erro ao atualizar transação.');
     }
   };
 
@@ -326,7 +353,7 @@ export const SalesHistory = () => {
             <thead className="bg-[var(--bg-surface)]" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
               <tr className="text-muted text-sm" style={{ borderBottom: '1px solid var(--border)' }}>
                 <th className="font-medium" style={{ padding: '12px 8px', width: '120px' }}>Data/Hora</th>
-                <th className="font-medium" style={{ padding: '12px 8px', width: '90px' }}>Operador</th>
+                <th className="font-medium" style={{ padding: '12px 8px', width: '105px' }}>Caixa / destino</th>
                 <th className="font-medium" style={{ padding: '12px 8px', width: '80px' }}>Tipo</th>
                 <th className="font-medium" style={{ padding: '12px 8px' }}>Descrição / Itens</th>
                 <th className="font-medium" style={{ padding: '12px 8px', width: '130px' }}>Cliente</th>
@@ -351,7 +378,7 @@ export const SalesHistory = () => {
                   >
                     <td className="text-sm whitespace-nowrap" style={{ padding: '12px 8px' }}>{format(t.date, 'dd/MM/yyyy HH:mm')}</td>
                     <td className="text-sm font-bold uppercase" style={{ padding: '12px 8px', color: t.profile === 'chaveiro' ? '#ef4444' : '#3b82f6' }}>
-                      {t.profile}
+                      {t.cashProfile || t.profile}{t.cashProfile && <small style={{ display: 'block', color: '#cbd5e1', fontSize: '11px' }}>→ {t.profile}</small>}
                     </td>
                     <td style={{ padding: '12px 8px' }}>
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -399,7 +426,7 @@ export const SalesHistory = () => {
                           className="p-2 text-primary hover:bg-primary/20 rounded transition-colors cursor-pointer" 
                           style={{ margin: '0 4px' }}
                           title="Imprimir Cupom" 
-                          onClick={() => printReceipt(t)}
+                          onClick={async () => { const original = t.id ? await db.transactions.get(t.id) : undefined; if (original) printReceipt(original); }}
                         >
                           <Printer size={24} />
                         </button>
@@ -409,7 +436,7 @@ export const SalesHistory = () => {
                           onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)'}
                           onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
                           title="Editar Transação" 
-                          onClick={() => setEditingTx(JSON.parse(JSON.stringify(t)))}
+                          onClick={async () => { const original = t.id ? await db.transactions.get(t.id) : undefined; if (original) setEditingTx(structuredClone(original)); }}
                         >
                           <Edit2 size={24} />
                         </button>
@@ -420,7 +447,7 @@ export const SalesHistory = () => {
                             onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(234, 179, 8, 0.2)'}
                             onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
                             title="Fazer Devolução Rápida" 
-                            onClick={() => handleReturn(t)}
+                            onClick={async () => { const original = t.id ? await db.transactions.get(t.id) : undefined; if (original) handleReturn(original); }}
                           >
                             <Undo2 size={24} />
                           </button>
@@ -519,7 +546,7 @@ export const SalesHistory = () => {
                   <button 
                     className="btn btn-sm btn-outline py-1 px-2 text-xs flex items-center gap-1"
                     onClick={() => {
-                      const newItem: TransactionItem = { service: 'other', name: 'Novo Item', quantity: 1, price: 0, cost: 0, total: 0 };
+                      const newItem: TransactionItem = { service: 'other', name: 'Novo Item', quantity: 1, price: 0, cost: 0, total: 0, financialProfile: editingTx.profile };
                       setEditingTx({...editingTx, items: [...editingTx.items, newItem]});
                     }}
                   >
@@ -607,6 +634,30 @@ export const SalesHistory = () => {
         </div>
       )}
 
+      {returningSale && (
+        <ReportModal
+          title="Devolver itens da venda"
+          subtitle={`Cliente: ${returningSale.clientName || 'não informado'} · ${format(returningSale.date, 'dd/MM/yyyy HH:mm')}`}
+          onClose={() => setReturningSale(null)}
+          footer={<div className="report-modal-footer-content"><strong className="report-modal-total">Total a devolver: R$ {refundPreview.toFixed(2).replace('.', ',')}</strong><button type="button" className="report-modal-action" disabled={refundPreview <= 0} onClick={submitReturn}>Confirmar devolução</button></div>}
+        >
+          <table className="report-modal-table"><thead><tr><th>Item</th><th>Disponível</th><th>Devolver</th></tr></thead><tbody>
+            {returningSale.items.map((item, index) => <tr key={index}>
+              <td>{item.name}</td><td>{returnable[index] || 0}</td>
+              <td><input type="number" min="0" max={returnable[index] || 0} step="1" aria-label={`Quantidade a devolver de ${item.name}`} value={returnQuantities[index] || 0} onChange={e => setReturnQuantities(previous => previous.map((quantity, position) => position === index ? Math.max(0, Math.min(returnable[index] || 0, Math.trunc(Number(e.target.value) || 0))) : quantity))} style={{ width: '72px', padding: '5px', background: '#0f172a', color: '#ffffff', border: '1px solid #64748b', borderRadius: '5px' }} /></td>
+            </tr>)}
+          </tbody></table>
+          <label className="label" style={{ display: 'block', marginTop: '16px' }}>Forma da devolução</label>
+          <select className="input" value={returnPaymentMethod} onChange={e => setReturnPaymentMethod(e.target.value as PaymentMethod)}>
+            <option value="cash">Dinheiro</option><option value="pix">PIX</option><option value="debit">Débito</option><option value="credit">Crédito</option>
+          </select>
+          <label className="label" style={{ display: 'block', marginTop: '16px' }}>Caixa que fará a devolução</label>
+          <select className="input" value={returnCashProfile} onChange={e => setReturnCashProfile(e.target.value as Profile)}>
+            {PROFILES.map(profile => <option key={profile} value={profile}>{profile.charAt(0).toUpperCase() + profile.slice(1)}</option>)}
+          </select>
+        </ReportModal>
+      )}
+
       {selectedTx && (
         <div 
           style={{ 
@@ -641,7 +692,8 @@ export const SalesHistory = () => {
                 </div>
                 <div>
                   <p className="text-xs text-muted font-bold uppercase mb-1">Operador</p>
-                  <p className="font-bold text-yellow-500 uppercase">{selectedTx.profile}</p>
+                  <p className="font-bold text-yellow-500 uppercase">{selectedTx.cashProfile || selectedTx.profile}</p>
+                  {selectedTx.cashProfile && <p className="text-xs text-muted">Destino: {selectedTx.profile}</p>}
                 </div>
                 <div>
                   <p className="text-xs text-muted font-bold uppercase mb-1">Pagamento</p>

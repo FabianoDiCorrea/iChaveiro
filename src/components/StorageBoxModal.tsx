@@ -2,6 +2,7 @@ import React from 'react';
 import { type PendingSale } from '../db/db';
 import { Package, Trash2, ArrowUpCircle, X, Calendar, User, Clock } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { newestPendingFirst } from '../db/pendingSales';
 
 interface StorageBoxModalProps {
   isOpen: boolean;
@@ -53,7 +54,7 @@ export const StorageBoxModal: React.FC<StorageBoxModalProps> = ({
             <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', fontStyle: 'italic' }}>
               A caixa está vazia. Nenhum item pendente passou de 7 dias.
             </div>
-          ) : archivedSales.map(sale => {
+          ) : archivedSales.slice().sort(newestPendingFirst).map(sale => {
             const daysOld = differenceInDays(today, sale.date);
             
             // Determine color based on age

@@ -259,6 +259,74 @@ input, select, textarea {
   box-shadow: inset 4px 0 0 0 var(--primary);
 }
 
+/* Demonstrativo financeiro: controles e diálogos fora do fluxo da página. */
+.report-indicator-list { display: flex; flex-direction: column; gap: 4px; }
+.report-indicator-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 10px 12px; border: 1px solid transparent;
+  border-radius: 8px; color: var(--text-main); text-align: left;
+  cursor: pointer; transition: background-color .15s, border-color .15s;
+}
+.report-indicator-row:hover, .report-indicator-row:focus-visible {
+  background-color: rgba(59, 130, 246, .18); border-color: rgba(96, 165, 250, .55);
+  outline: none;
+}
+.report-indicator-value { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-weight: 700; }
+.report-indicator-chevron { flex: none; opacity: .9; }
+.report-transactions-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-top: 12px; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-main); background: rgba(15, 23, 42, .45);
+  font-size: .8rem; font-weight: 600; cursor: pointer;
+}
+.report-transactions-trigger:hover, .report-transactions-trigger:focus-visible {
+  background: var(--bg-surface-hover); border-color: var(--primary); outline: none;
+}
+.report-modal-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; background: rgba(2, 6, 23, .82);
+}
+.report-modal-panel {
+  display: flex; flex-direction: column; width: min(100%, 1100px);
+  max-height: min(90vh, 900px); min-height: 0; overflow: hidden;
+  border: 1px solid #64748b; border-radius: 14px;
+  background: #1e293b; color: var(--text-main);
+  box-shadow: 0 25px 70px rgba(0, 0, 0, .65);
+}
+.report-modal-panel-wide { width: min(100%, 1500px); }
+.report-modal-header, .report-modal-footer {
+  flex: none; background: #1e293b; padding: 16px 20px;
+}
+.report-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); }
+.report-modal-header h2 { font-size: 1.15rem; font-weight: 700; }
+.report-modal-header p { color: var(--text-muted); font-size: .85rem; margin-top: 3px; }
+.report-modal-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 20px; }
+.report-modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border); }
+.report-modal-footer-content { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 16px; }
+.report-modal-total { font-size: 1rem; font-weight: 800; color: #6ee7b7; }
+.report-modal-close, .report-modal-action, .report-page-button {
+  color: var(--text-main); background: #334155; border: 1px solid #64748b;
+  border-radius: 8px; padding: 7px 10px; cursor: pointer;
+}
+.report-modal-close { display: inline-flex; align-items: center; justify-content: center; padding: 7px; }
+.report-modal-close:hover, .report-modal-action:hover, .report-page-button:not(:disabled):hover { background: #475569; }
+.report-page-button:disabled { opacity: .45; cursor: default; }
+.report-modal-pagination { display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: .85rem; }
+.report-modal-table { width: 100%; border-collapse: collapse; color: var(--text-main); font-size: .85rem; }
+.report-modal-table th, .report-modal-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.report-modal-table th { position: sticky; top: 0; z-index: 1; background: #1e293b; color: #cbd5e1; white-space: nowrap; }
+.report-modal-table .report-number { text-align: right; white-space: nowrap; }
+.report-modal-table tbody tr:hover { background: rgba(59, 130, 246, .12); }
+.report-modal-empty { padding: 28px; color: var(--text-muted); text-align: center; }
+@media (max-width: 700px) {
+  .report-modal-overlay { padding: 8px; }
+  .report-modal-header, .report-modal-footer { padding: 12px; }
+  .report-modal-body { padding: 8px 12px; }
+  .report-modal-footer { flex-wrap: wrap; }
+  .report-modal-footer-content { flex-wrap: wrap; }
+}
+
 /* Custom styling for native date inputs */
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
@@ -293,4 +361,28 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   #print-root table { width: 100%; border-collapse: collapse; font-size: 12px; }
   #print-root th, #print-root td { padding: 2px 0; }
   #print-root .header-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+}
+.pos-root input:not([type="checkbox"]):not([type="radio"]), .pos-root select, .pos-root textarea {
+  padding-left: 11px !important;
+  padding-right: 11px !important;
+  box-sizing: border-box;
+}
+
+.pos-register-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px !important;
+  font-size: 0.75rem !important;
+  white-space: nowrap;
+}
+
+.pos-register-header h1 { font-size: 1.25rem !important; }
+
+@media (max-width: 1366px) {
+  .pos-register-header { gap: 8px; padding: 10px !important; }
+  .pos-register-header > div:first-child { min-width: 170px; }
+  .pos-register-actions { gap: 5px !important; }
+  .pos-register-actions > button { padding: 5px 8px !important; font-size: 0.7rem !important; }
 }
