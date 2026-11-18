@@ -24,13 +24,16 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Run Test Suite
+        run: npm test
+
       - name: Build Electron App
         run: npm run electron:build -- --publish never
 
       - name: Publish Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          name: iChaveiro 20.27.001 — Edição 2027
+          name: iChaveiro 20.27.002 — Edição 2027
           body: |
             ### Novidades da Edição 2027
 
@@ -38,12 +41,13 @@ jobs:
             - Cadastro de maquininhas, tarifas por modalidade e parcela, além de relatórios de taxas.
             - Gerência com contas, recorrências, despesas, fundos, reservas, metas, cenários e calendário.
             - Custos de aquisição e reposição, agrupamentos comerciais e filtros detalhados de Movimento.
-            - Cupom com identificação priorizada e Instagram após a mensagem de agradecimento.
+            - Cupom com identificação priorizada, margem superior para grampeamento e Instagram após o agradecimento.
+            - Cupom Livre com editor de texto formatado, pré-visualização térmica, margens configuráveis e impressão contínua.
 
             A atualização mantém o identificador do aplicativo e o diretório de dados local. As migrações são aditivas; não é necessário desinstalar a versão anterior nem restaurar um backup como etapa normal da atualização.
           files: |
-            release/iChaveiro-Setup-v20.27.1.exe
-            release/iChaveiro-Setup-v20.27.1.exe.blockmap
+            release/iChaveiro-Setup-v20.27.2.exe
+            release/iChaveiro-Setup-v20.27.2.exe.blockmap
             release/latest.yml
           draft: false
           prerelease: false

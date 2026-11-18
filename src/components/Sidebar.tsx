@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud, Download, Briefcase, ChartNoAxesCombined } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, FileText, Undo2, KeyRound, Package, History, Cloud, Download, Briefcase, ChartNoAxesCombined, Printer } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { managementNotices } from '../db/managementNotices';
@@ -72,6 +72,10 @@ export const Sidebar = () => {
         <NavLink to="/caixa" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <ShoppingCart size={20} />
           <span>Caixa / PDV</span>
+        </NavLink>
+        <NavLink to="/cupom-livre" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <Printer size={20} />
+          <span>Cupom Livre</span>
         </NavLink>
         <NavLink to="/estoque" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Package size={20} />

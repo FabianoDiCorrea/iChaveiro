@@ -6,11 +6,22 @@ const money = (value: number) => value / 100;
 export const itemFinancialProfile = (item: TransactionItem, cashProfile: Profile): Profile =>
   item.financialProfile || cashProfile;
 
+// New cart items inherit the sale profile until the operator pins them to the other profile.
+// A second toggle clears that pin, even if the sale profile changed in the meantime.
+export function toggleItemFinancialProfile(item: TransactionItem, saleProfile: Profile): TransactionItem {
+  if (item.financialProfile) {
+    const defaultItem = { ...item };
+    delete defaultItem.financialProfile;
+    return defaultItem;
+  }
+  return { ...item, financialProfile: saleProfile === 'chaveiro' ? 'fabiano' : 'chaveiro' };
+}
+
 export const hasFinancialDistribution = (transaction: Transaction): boolean =>
   transaction.items.some(item => itemFinancialProfile(item, transaction.profile) !== transaction.profile);
 
 export const itemDiscountCents = (item: TransactionItem): number =>
-  item.financialProfile && item.originalPrice !== undefined
+  item.originalPrice !== undefined
     ? Math.max(0, cents(item.originalPrice * item.quantity) - cents(item.total)) : 0;
 
 const itemDiscountTotal = (transaction: Transaction): number =>

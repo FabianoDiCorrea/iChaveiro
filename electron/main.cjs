@@ -10,6 +10,49 @@ if (process.env.ICHAVEIRO_TEST_MODE === '1' && process.env.ICHAVEIRO_TEST_USER_D
 // Habilita a impressão silenciosa (direto para a impressora padrão, sem janela)
 app.commandLine.appendSwitch('kiosk-printing');
 
+// Independent continuous-paper print path for the free-text editor.
+ipcMain.handle('print-free-coupon', async (_event, html, settings) => {
+  const failure = (error) => ({ success: false, error: error instanceof Error ? error.message : String(error || 'Falha desconhecida na impressão.') });
+  if (typeof html !== 'string' || !html.length || html.length > 2_000_000) return failure('O conteúdo do cupom está vazio ou excede o limite de impressão.');
+  if (!settings || !Number.isInteger(settings.copies) || settings.copies < 1 || settings.copies > 20) return failure('A quantidade de cópias deve ficar entre 1 e 20.');
+  if (!Number.isFinite(settings.paperWidthMm) || settings.paperWidthMm < 40 || settings.paperWidthMm > 120) return failure('A largura física do papel é inválida.');
+  const dimensions = [settings.printableWidthMm, settings.marginLeftMm, settings.marginRightMm, settings.marginTopMm, settings.marginBottomMm];
+  if (!dimensions.every(Number.isFinite) || settings.printableWidthMm < 20 || dimensions.slice(1).some(value => value < 0 || value > 50)
+      || settings.printableWidthMm + settings.marginLeftMm + settings.marginRightMm > settings.paperWidthMm + 0.001) return failure('A área imprimível e as margens não cabem na largura física informada.');
+
+  let printWin;
+  try {
+    printWin = new BrowserWindow({
+      show: false,
+      width: 400,
+      height: 900,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+    });
+    await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    const heightPx = await printWin.webContents.executeJavaScript('document.fonts.ready.then(() => document.documentElement.scrollHeight)');
+    if (!Number.isFinite(heightPx) || heightPx <= 0) throw new Error('Não foi possível medir o comprimento do documento.');
+    const pageSize = {
+      width: Math.round(settings.paperWidthMm * 1000),
+      height: Math.max(353, Math.ceil(heightPx * 25400 / 96))
+    };
+    const result = await new Promise((resolve) => {
+      printWin.webContents.print({
+        silent: true,
+        printBackground: true,
+        color: false,
+        copies: settings.copies,
+        pageSize,
+        margins: { marginType: 'none' }
+      }, (success, failureReason) => resolve({ success, failure: failureReason }));
+    });
+    if (!result.success) return failure(result.failure || 'O driver recusou as medidas do papel ou o trabalho de impressão.');
+    return { success: true };
+  } catch (error) {
+    return failure(error);
+  } finally {
+    if (printWin && !printWin.isDestroyed()) printWin.close();
+  }
+});
 ipcMain.on('print-receipt', (event, html, twoCopies) => {
   let printWin = new BrowserWindow({
     show: false,

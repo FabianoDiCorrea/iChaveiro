@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, PROFILES, type Transaction, type Profile, type PaymentMethod, type TransactionItem } from '../db/db';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
 import { Calendar, Printer, Undo2, Trash2, Search, Filter, Edit2, X, Plus, Receipt } from 'lucide-react';
-import { financialTransaction } from '../db/financialAllocation';
 import { deleteTransactionSafely, linkedReturnsFor, remainingQuantities, prepareReturn, returnSaleItems } from '../db/saleReturns';
 import { ReportModal } from '../components/ReportModal';
+import { projectSalesHistoryRows } from './salesHistoryData';
 
 export const SalesHistory = () => {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('today');
@@ -16,6 +16,8 @@ export const SalesHistory = () => {
   
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [fullTransaction, setFullTransaction] = useState<Transaction | null>(null);
+  const [showFullTransaction, setShowFullTransaction] = useState(false);
   const [returningSale, setReturningSale] = useState<Transaction | null>(null);
   const [priorReturns, setPriorReturns] = useState<Transaction[]>([]);
   const [returnQuantities, setReturnQuantities] = useState<number[]>([]);
@@ -40,29 +42,32 @@ export const SalesHistory = () => {
 
   const { start, end } = getDates();
 
-  const transactions = useLiveQuery(
-    async () => {
-      let query = await db.transactions
-        .where('date')
-        .between(start, end)
-        .reverse()
-        .toArray();
-      
-      query = query.map(t => financialTransaction(t, viewProfile)).filter((t): t is NonNullable<typeof t> => t !== null);
-
-      if (searchTerm) {
-        const lowerSearch = searchTerm.toLowerCase();
-        query = query.filter(t => 
-          t.items.some(i => i.name.toLowerCase().includes(lowerSearch)) ||
-          t.paymentMethod.toLowerCase().includes(lowerSearch) ||
-          (t.clientName && t.clientName.toLowerCase().includes(lowerSearch))
-        );
-      }
-
-      return query;
-    },
-    [start, end, viewProfile, searchTerm]
+  const physicalTransactions = useLiveQuery(
+    () => db.transactions.where('date').between(start, end).reverse().toArray(),
+    [start, end]
   );
+  const transactions = useMemo(
+    () => physicalTransactions ? projectSalesHistoryRows(physicalTransactions, viewProfile, searchTerm) : undefined,
+    [physicalTransactions, viewProfile, searchTerm]
+  );
+
+  const toggleFullTransaction = async () => {
+    if (showFullTransaction) {
+      setShowFullTransaction(false);
+      return;
+    }
+    if (!selectedTx?.id) return;
+    const original = await db.transactions.get(selectedTx.id);
+    if (!original) return;
+    setFullTransaction(original);
+    setShowFullTransaction(true);
+  };
+  const detailTx = showFullTransaction ? fullTransaction || selectedTx : selectedTx;
+  const closeSelectedTransaction = () => {
+    setSelectedTx(null);
+    setFullTransaction(null);
+    setShowFullTransaction(false);
+  };
 
   const handleDelete = async (id?: number) => {
     if (!id) return;
@@ -373,7 +378,7 @@ export const SalesHistory = () => {
                     key={t.id} 
                     className="table-row-hover" 
                     style={{ borderBottom: '1px solid var(--border)' }}
-                    onClick={() => setSelectedTx(t)}
+                    onClick={() => { setSelectedTx(t); setFullTransaction(null); setShowFullTransaction(false); }}
                     title="Clique para ver detalhes desta transação"
                   >
                     <td className="text-sm whitespace-nowrap" style={{ padding: '12px 8px' }}>{format(t.date, 'dd/MM/yyyy HH:mm')}</td>
@@ -546,7 +551,7 @@ export const SalesHistory = () => {
                   <button 
                     className="btn btn-sm btn-outline py-1 px-2 text-xs flex items-center gap-1"
                     onClick={() => {
-                      const newItem: TransactionItem = { service: 'other', name: 'Novo Item', quantity: 1, price: 0, cost: 0, total: 0, financialProfile: editingTx.profile };
+                      const newItem: TransactionItem = { service: 'other', name: 'Novo Item', quantity: 1, price: 0, cost: 0, total: 0 };
                       setEditingTx({...editingTx, items: [...editingTx.items, newItem]});
                     }}
                   >
@@ -658,7 +663,7 @@ export const SalesHistory = () => {
         </ReportModal>
       )}
 
-      {selectedTx && (
+      {detailTx && (
         <div 
           style={{ 
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
@@ -666,7 +671,7 @@ export const SalesHistory = () => {
             padding: '1rem', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)' 
           }}
           className="animate-fade-in"
-          onClick={() => setSelectedTx(null)}
+          onClick={closeSelectedTransaction}
         >
           <div 
             style={{ 
@@ -678,8 +683,8 @@ export const SalesHistory = () => {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-              <h2 className="text-xl font-bold flex items-center gap-2"><Receipt size={24} className="text-primary"/> Detalhes da Transação #{selectedTx.id}</h2>
-              <button className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer" onClick={() => setSelectedTx(null)}>
+              <h2 className="text-xl font-bold flex items-center gap-2"><Receipt size={24} className="text-primary"/> {showFullTransaction ? 'Venda física completa' : viewProfile === 'todos' ? 'Transação completa' : `Parcela financeira — ${viewProfile}`} #{detailTx.id}</h2>
+              <button className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer" onClick={closeSelectedTransaction}>
                 <X size={24} />
               </button>
             </div>
@@ -688,36 +693,36 @@ export const SalesHistory = () => {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <p className="text-xs text-muted font-bold uppercase mb-1">Data / Hora</p>
-                  <p className="font-mono">{format(selectedTx.date, 'dd/MM/yyyy HH:mm')}</p>
+                  <p className="font-mono">{format(detailTx.date, 'dd/MM/yyyy HH:mm')}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted font-bold uppercase mb-1">Operador</p>
-                  <p className="font-bold text-yellow-500 uppercase">{selectedTx.cashProfile || selectedTx.profile}</p>
-                  {selectedTx.cashProfile && <p className="text-xs text-muted">Destino: {selectedTx.profile}</p>}
+                  <p className="text-xs text-muted font-bold uppercase mb-1">Caixa físico</p>
+                  <p className="font-bold text-yellow-500 uppercase">{detailTx.cashProfile || detailTx.profile}</p>
+                  {detailTx.cashProfile && <p className="text-xs text-muted">Perfil financeiro: {detailTx.profile}</p>}
                 </div>
                 <div>
                   <p className="text-xs text-muted font-bold uppercase mb-1">Pagamento</p>
-                  <p className="font-bold uppercase text-muted">{selectedTx.paymentMethod === 'cash' ? 'Dinheiro' : selectedTx.paymentMethod === 'credit' ? 'Crédito' : selectedTx.paymentMethod === 'debit' ? 'Débito' : selectedTx.paymentMethod === 'pix' ? 'PIX' : 'Múltiplo'}</p>
+                  <p className="font-bold uppercase text-muted">{detailTx.paymentMethod === 'cash' ? 'Dinheiro' : detailTx.paymentMethod === 'credit' ? 'Crédito' : detailTx.paymentMethod === 'debit' ? 'Débito' : detailTx.paymentMethod === 'pix' ? 'PIX' : 'Múltiplo'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted font-bold uppercase mb-1">Tipo</p>
-                  <p className="font-bold">{selectedTx.type === 'sale' ? 'Venda' : selectedTx.type === 'expense' ? 'Despesa' : 'Devolução'}</p>
+                  <p className="font-bold">{detailTx.type === 'sale' ? 'Venda' : detailTx.type === 'expense' ? 'Despesa' : 'Devolução'}</p>
                 </div>
               </div>
 
-              {selectedTx.clientName && (
+              {detailTx.clientName && (
                 <div className="mb-6 p-3 bg-black/20 rounded-lg border border-[var(--border)]">
                   <p className="text-xs text-muted font-bold uppercase mb-1">Cliente</p>
-                  <p className="font-bold">{selectedTx.clientName}</p>
+                  <p className="font-bold">{detailTx.clientName}</p>
                   {/* @ts-ignore */}
-                  {selectedTx.clientPhone && <p className="text-sm text-muted">{selectedTx.clientPhone}</p>}
+                  {detailTx.clientPhone && <p className="text-sm text-muted">{detailTx.clientPhone}</p>}
                 </div>
               )}
 
               <div className="mb-6">
-                <p className="text-xs text-muted font-bold uppercase mb-2">Itens da Transação</p>
+                <p className="text-xs text-muted font-bold uppercase mb-2">{showFullTransaction ? 'Todos os itens da venda física' : viewProfile === 'todos' ? 'Todos os itens' : `Itens atribuídos a ${viewProfile}`}</p>
                 <div className="flex flex-col gap-2">
-                  {selectedTx.items.map((item: any, i: number) => (
+                  {detailTx.items.map((item: any, i: number) => (
                     <div key={i} className="flex justify-between items-center p-2 bg-black/20 rounded border border-[var(--border)]">
                       <div>
                         <p className="font-bold text-sm">{item.quantity}x {item.name}</p>
@@ -732,29 +737,29 @@ export const SalesHistory = () => {
               <div className="flex flex-col gap-1 p-4 bg-black/30 rounded-lg border border-[var(--border)]">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted">Subtotal:</span>
-                  <span>R$ {(selectedTx.total + (selectedTx.discount || 0)).toFixed(2).replace('.', ',')}</span>
+                  <span>R$ {(detailTx.total + (detailTx.discount || 0)).toFixed(2).replace('.', ',')}</span>
                 </div>
-                {selectedTx.discount && selectedTx.discount > 0 ? (
+                {detailTx.discount && detailTx.discount > 0 ? (
                   <div className="flex justify-between text-sm text-orange-500">
                     <span>Desconto Extra:</span>
-                    <span>- R$ {selectedTx.discount.toFixed(2).replace('.', ',')}</span>
+                    <span>- R$ {detailTx.discount.toFixed(2).replace('.', ',')}</span>
                   </div>
                 ) : null}
                 <div className="flex justify-between text-base font-bold mt-1 mb-2 pt-1 border-t border-[var(--border)/50]">
-                  <span>Total Cobrado:</span>
-                  <span>R$ {selectedTx.total.toFixed(2).replace('.', ',')}</span>
+                  <span>{showFullTransaction || viewProfile === 'todos' ? 'Total da venda física:' : `Total atribuído a ${viewProfile}:`}</span>
+                  <span>R$ {detailTx.total.toFixed(2).replace('.', ',')}</span>
                 </div>
                 
-                {selectedTx.machineFee && selectedTx.machineFee > 0 ? (
+                {detailTx.machineFee && detailTx.machineFee > 0 ? (
                   <div className="flex justify-between text-sm text-purple-400">
                     <span>Taxa Maquininha:</span>
-                    <span>- R$ {selectedTx.machineFee.toFixed(2).replace('.', ',')}</span>
+                    <span>- R$ {detailTx.machineFee.toFixed(2).replace('.', ',')}</span>
                   </div>
                 ) : null}
                 
                 {(() => {
-                  const totalCost = selectedTx.items.reduce((sum: number, item: any) => sum + ((item.cost || 0) * item.quantity), 0);
-                  const realProfit = selectedTx.total - (selectedTx.machineFee || 0) - totalCost;
+                  const totalCost = detailTx.items.reduce((sum: number, item: any) => sum + ((item.cost || 0) * item.quantity), 0);
+                  const realProfit = detailTx.total - (detailTx.machineFee || 0) - totalCost;
                   return (
                     <>
                       {totalCost > 0 && (
@@ -774,9 +779,12 @@ export const SalesHistory = () => {
             </div>
             
             <div style={{ padding: '16px', borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+              {viewProfile !== 'todos' && <button className="btn btn-outline w-full mb-2" onClick={toggleFullTransaction}>
+                {showFullTransaction ? `Voltar à parcela de ${viewProfile}` : 'Ver venda física completa'}
+              </button>}
               <button 
                 className="btn btn-primary w-full"
-                onClick={() => setSelectedTx(null)}
+                onClick={closeSelectedTransaction}
               >
                 Fechar Detalhes
               </button>

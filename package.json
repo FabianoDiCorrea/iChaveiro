@@ -1,7 +1,7 @@
 {
   "name": "ichaveiro",
   "private": true,
-  "version": "20.27.1",
+  "version": "20.27.2",
   "author": "DevDuo",
   "description": "Sistema de Gestão para Chaveiro",
   "type": "module",
@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "electron:start": "cross-env ELECTRON_START_URL=http://localhost:5173 electron .",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron:start\"",
+    "test": "node --test",
     "electron:build": "npm run build && electron-builder"
   },
   "build": {
@@ -74,6 +75,7 @@
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "fake-indexeddb": "6.2.8",
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",

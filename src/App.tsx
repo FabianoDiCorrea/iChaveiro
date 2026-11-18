@@ -12,6 +12,7 @@ import { SessionHistory } from './pages/SessionHistory';
 import { Backup } from './pages/Backup';
 import { Employees } from './pages/Employees';
 import { Management } from './pages/Management';
+import { FreeCoupon } from './pages/FreeCoupon';
 
 const AppRoutes = () => {
   return (
@@ -19,6 +20,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="caixa" element={<Pos />} />
+        <Route path="cupom-livre" element={<FreeCoupon />} />
         <Route path="estoque" element={<Inventory />} />
         <Route path="clientes" element={<Clients />} />
         <Route path="relatorios" element={<Reports />} />

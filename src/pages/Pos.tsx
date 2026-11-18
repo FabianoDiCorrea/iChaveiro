@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { db, type PaymentMethod, type TransactionItem } from '../db/db';
 import type { Profile } from '../db/db';
 import { CheckCircle, Trash2, Banknote, CreditCard, Smartphone, Tag, Package, Printer, ArrowLeftRight, CircleDollarSign, Power, TriangleAlert } from 'lucide-react';
-import { getFinancialShares, itemFinancialProfile } from '../db/financialAllocation';
+import { getFinancialShares, itemFinancialProfile, toggleItemFinancialProfile } from '../db/financialAllocation';
 import { printedCustomerName } from '../db/receiptIdentity.cjs';
 import { newestPendingFirst, pendingNameOnly, pendingSaleChanges } from '../db/pendingSales';
 import { getCashSessionTotals } from '../db/cashTotals';
@@ -218,8 +218,7 @@ export const Pos = () => {
       replacementCost: product.replacementCostCents === undefined ? undefined : product.replacementCostCents / 100,
       total: product.price * qty,
       productId: product.id,
-      isService: product.isService,
-      financialProfile: transactionProfile
+      isService: product.isService
     } as any]);
 
     setSearchProduct('');
@@ -247,8 +246,7 @@ export const Pos = () => {
         price: 0,
         originalPrice: 0,
         cost: 0,
-        total: 0,
-        financialProfile: transactionProfile
+        total: 0
       } as any]);
       setSearchProduct('');
       setCustomUnitPrice('');
@@ -265,6 +263,12 @@ export const Pos = () => {
       newItems[index].total = qty * prc;
     }
     setItems(newItems);
+  };
+
+  const toggleItemProfile = (index: number) => {
+    const nextItems = [...items];
+    nextItems[index] = toggleItemFinancialProfile(nextItems[index], transactionProfile);
+    setItems(nextItems);
   };
 
   const removeItem = (index: number) => {
@@ -621,6 +625,11 @@ export const Pos = () => {
             </style>
           </head>
           <body>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
+            <div class="text-left" style="font-size: 10px; margin-left: 5px;">.</div>
             <div class="text-center header-title">Chaveiro & Cutelaria<br>do Lidio e Fabiano</div>
               <div class="text-center bold" style="font-size: 12px; margin-top: 5px;">Rua Cardoso de Morais, Frente ao 202</div>
               <div class="text-center bold" style="font-size: 12px;">Bonsucesso - RJ (Frente ao Caçula)</div>
@@ -1717,7 +1726,7 @@ export const Pos = () => {
                       <td className="py-4 px-3 font-black uppercase text-gray-900" style={{ fontSize: '22px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <span>{item.name}</span>
-                          <button type="button" title={`Alternar destino entre ${profileLabel(transactionProfile)} e ${profileLabel(transactionProfile === 'chaveiro' ? 'fabiano' : 'chaveiro')}`} aria-label={`Alternar perfil financeiro de ${item.name}`} onClick={() => updateItem(index, 'financialProfile', itemFinancialProfile(item, transactionProfile) === transactionProfile ? (transactionProfile === 'chaveiro' ? 'fabiano' : 'chaveiro') : transactionProfile)} style={{ display: 'inline-flex', alignItems: 'center', padding: '3px', borderRadius: '5px', color: '#1d4ed8', background: '#eff6ff', border: 0, cursor: 'pointer' }}><ArrowLeftRight size={15} /></button>
+                          <button type="button" title={item.financialProfile ? `Remover destino individual (${profileLabel(item.financialProfile)})` : `Destinar individualmente ao ${profileLabel(transactionProfile === 'chaveiro' ? 'fabiano' : 'chaveiro')}`} aria-label={`Alternar perfil financeiro de ${item.name}`} onClick={() => toggleItemProfile(index)} style={{ display: 'inline-flex', alignItems: 'center', padding: '3px', borderRadius: '5px', color: '#1d4ed8', background: '#eff6ff', border: 0, cursor: 'pointer' }}><ArrowLeftRight size={15} /></button>
                           {itemFinancialProfile(item, transactionProfile) !== transactionProfile && <span style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: 700 }}>{profileLabel(itemFinancialProfile(item, transactionProfile))}</span>}
                         </div>
                       </td>
