@@ -148,9 +148,9 @@ test('devoluções reduzem unidades e receita dos mesmos grupos', () => {
 
 test('horários, calendário e períodos do mês usam a mesma classificação e os mesmos itens', () => {
   const rows = [
-    sale([keyItem(1, 12)], { id: 20, date: new Date('2026-11-05T15:30:00-03:00'), discount: 0 }),
-    sale([keyItem(1, 12)], { id: 21, date: new Date('2026-11-05T16:00:00-03:00'), discount: 0 }),
-    sale([keyItem(1, 12)], { id: 22, date: new Date('2026-11-12T15:45:00-03:00'), discount: 0 })
+    sale([keyItem(1, 12)], { id: 20, date: new Date(2026, 10, 5, 15, 30), discount: 0 }),
+    sale([keyItem(1, 12)], { id: 21, date: new Date(2026, 10, 5, 16, 0), discount: 0 }),
+    sale([keyItem(1, 12)], { id: 22, date: new Date(2026, 10, 12, 15, 45), discount: 0 })
   ];
   const filtered = movement.movementRows(rows, products, 'todos', filters({ groupKey: 'service:Cópias de chaves comuns' }));
   assert.equal(movement.movementTotals(movement.movementRowsForHour(filtered, 15, 16, 4)).sales, 2);
